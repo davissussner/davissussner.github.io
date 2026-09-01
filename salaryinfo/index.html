@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>University of Nebraska Salary Lookup</title>
+<style>
+  :root {
+    --red: #d00000;
+    --red-dark: #a30000;
+    --bg: #f7f7f7;
+    --border: #ddd;
+    --text: #222;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+  }
+  header {
+    background: var(--red);
+    color: #fff;
+    padding: 1.25rem 1rem;
+    text-align: center;
+  }
+  header h1 {
+    margin: 0 0 0.25rem 0;
+    font-size: 1.4rem;
+  }
+  header p {
+    margin: 0;
+    font-size: 0.85rem;
+    opacity: 0.9;
+  }
+  main {
+    max-width: 1000px;
+    margin: 1.5rem auto;
+    padding: 0 1rem;
+  }
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+  }
+  #search {
+    flex: 1 1 260px;
+    padding: 0.6rem 0.8rem;
+    font-size: 1rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+  }
+  select {
+    padding: 0.6rem 0.5rem;
+    font-size: 0.95rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: #fff;
+  }
+  .meta {
+    font-size: 0.85rem;
+    color: #555;
+    margin-bottom: 0.5rem;
+  }
+  .table-wrap {
+    overflow-x: auto;
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+  }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    font-size: 0.9rem;
+  }
+  th, td {
+    padding: 0.55rem 0.7rem;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  th {
+    background: #fafafa;
+    position: sticky;
+    top: 0;
+    cursor: pointer;
+    user-select: none;
+  }
+  th.sorted-asc::after { content: " \25B2"; font-size: 0.7em; }
+  th.sorted-desc::after { content: " \25BC"; font-size: 0.7em; }
+  td.salary, th.salary { text-align: right; }
+  tbody tr:hover { background: #fff5f5; }
+  #empty {
+    padding: 1.5rem;
+    text-align: center;
+    color: #777;
+    display: none;
+  }
+  footer {
+    max-width: 1000px;
+    margin: 1rem auto 2rem;
+    padding: 0 1rem;
+    font-size: 0.75rem;
+    color: #888;
+    text-align: center;
+  }
+  @media (max-width: 600px) {
+    header h1 { font-size: 1.15rem; }
+    .controls { flex-direction: column; }
+    .controls #search,
+    .controls select { flex: none; width: 100%; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>University of Nebraska System Salary Lookup</h1>
+  <p>Public personnel salary data &mdash; search by name, campus, or title</p>
+</header>
+
+<main>
+  <div class="controls">
+    <input id="search" type="text" placeholder="Search by name, title, or campus..." autocomplete="off">
+    <select id="campusFilter">
+      <option value="">All Campuses</option>
+    </select>
+  </div>
+
+  <div class="meta" id="meta"></div>
+
+  <div class="table-wrap">
+    <table id="resultsTable">
+      <thead>
+        <tr>
+          <th data-key="0">Name</th>
+          <th data-key="1">Campus</th>
+          <th data-key="2">Title</th>
+          <th data-key="3" class="salary">Salary</th>
+          <th data-key="4">FTE</th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+    <div id="empty">No matching employees found.</div>
+  </div>
+</main>
+
+<footer>
+  Source: public salary records provided by the University of Nebraska system. Data is provided as-is for informational purposes.
+</footer>
+
+<script>
+(function () {
+  var allData = [];
+  var filtered = [];
+  var sortKey = 3;
+  var sortDir = -1;
+  var PAGE_SIZE = 200;
+  var shown = PAGE_SIZE;
+
+  var searchInput = document.getElementById('search');
+  var campusFilter = document.getElementById('campusFilter');
+  var tbody = document.getElementById('tbody');
+  var meta = document.getElementById('meta');
+  var emptyDiv = document.getElementById('empty');
+  var tableWrap = document.querySelector('.table-wrap');
+
+  function fmtSalary(v) {
+    if (typeof v !== 'number') return v;
+    return '$' + v.toLocaleString('en-US');
+  }
+
+  function render() {
+    var q = searchInput.value.trim().toLowerCase();
+    var campus = campusFilter.value;
+
+    filtered = allData.filter(function (row) {
+      if (campus && row[1] !== campus) return false;
+      if (!q) return true;
+      return row[0].toLowerCase().indexOf(q) !== -1 ||
+             row[2].toLowerCase().indexOf(q) !== -1 ||
+             row[1].toLowerCase().indexOf(q) !== -1;
+    });
+
+    filtered.sort(function (a, b) {
+      var av = a[sortKey], bv = b[sortKey];
+      if (typeof av === 'string') av = av.toLowerCase();
+      if (typeof bv === 'string') bv = bv.toLowerCase();
+      if (av < bv) return -1 * sortDir;
+      if (av > bv) return 1 * sortDir;
+      return 0;
+    });
+
+    shown = PAGE_SIZE;
+    meta.textContent = filtered.length.toLocaleString('en-US') + ' employee' + (filtered.length === 1 ? '' : 's') +
+      (allData.length !== filtered.length ? ' (of ' + allData.length.toLocaleString('en-US') + ' total)' : '');
+
+    renderRows();
+  }
+
+  function renderRows() {
+    tbody.innerHTML = '';
+    var slice = filtered.slice(0, shown);
+    var frag = document.createDocumentFragment();
+    slice.forEach(function (row) {
+      var tr = document.createElement('tr');
+      tr.innerHTML =
+        '<td>' + escapeHtml(row[0]) + '</td>' +
+        '<td>' + escapeHtml(row[1]) + '</td>' +
+        '<td>' + escapeHtml(row[2]) + '</td>' +
+        '<td class="salary">' + fmtSalary(row[3]) + '</td>' +
+        '<td>' + escapeHtml(row[4]) + '</td>';
+      frag.appendChild(tr);
+    });
+    tbody.appendChild(frag);
+    emptyDiv.style.display = filtered.length === 0 ? 'block' : 'none';
+  }
+
+  function escapeHtml(s) {
+    var div = document.createElement('div');
+    div.textContent = s;
+    return div.innerHTML;
+  }
+
+  function updateSortHeaders() {
+    document.querySelectorAll('th[data-key]').forEach(function (th) {
+      th.classList.remove('sorted-asc', 'sorted-desc');
+      if (parseInt(th.dataset.key, 10) === sortKey) {
+        th.classList.add(sortDir === 1 ? 'sorted-asc' : 'sorted-desc');
+      }
+    });
+  }
+
+  document.querySelectorAll('th[data-key]').forEach(function (th) {
+    th.addEventListener('click', function () {
+      var key = parseInt(th.dataset.key, 10);
+      if (key === sortKey) {
+        sortDir *= -1;
+      } else {
+        sortKey = key;
+        sortDir = key === 3 ? -1 : 1;
+      }
+      updateSortHeaders();
+      render();
+    });
+  });
+
+  tableWrap.addEventListener('scroll', function () {
+    if (tableWrap.scrollTop + tableWrap.clientHeight >= tableWrap.scrollHeight - 100) {
+      if (shown < filtered.length) {
+        shown += PAGE_SIZE;
+        renderRows();
+      }
+    }
+  });
+
+  var debounceTimer;
+  searchInput.addEventListener('input', function () {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(render, 120);
+  });
+  campusFilter.addEventListener('change', render);
+
+  fetch('salaries.json')
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      allData = data;
+      var campuses = Array.from(new Set(data.map(function (r) { return r[1]; }))).sort();
+      campuses.forEach(function (c) {
+        var opt = document.createElement('option');
+        opt.value = c;
+        opt.textContent = c;
+        campusFilter.appendChild(opt);
+      });
+      updateSortHeaders();
+      render();
+    })
+    .catch(function (err) {
+      meta.textContent = 'Failed to load salary data.';
+      console.error(err);
+    });
+})();
+</script>
+
+</body>
+</html>
