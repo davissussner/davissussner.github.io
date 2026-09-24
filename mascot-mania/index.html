@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mascot Mania</title>
+<meta name="description" content="Play as Herbie Husker and brawl your way through every Big Ten mascot, all the way to the Iowa Hawkeye.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bungee&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+</script>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div id="hud" class="hidden">
+  <div id="player-panel">
+    <div class="panel-label">HERBIE HUSKER</div>
+    <div class="bar hp"><div id="player-hp"></div></div>
+    <div class="bar stamina"><div id="player-stamina"></div></div>
+    <div class="bar special"><div id="player-special"></div><span id="special-label">HAYMAKER</span></div>
+  </div>
+  <div id="enemy-panel" class="hidden">
+    <div id="enemy-school"></div>
+    <div id="enemy-name"></div>
+    <div class="bar enemy"><div id="enemy-hp"></div></div>
+  </div>
+  <div id="progress"></div>
+  <div id="objective"></div>
+  <div id="callout"></div>
+  <div id="float-layer"></div>
+  <div id="keys-hint">
+    <span><b>WASD</b> move</span><span><b>Mouse</b> look</span><span><b>P</b> hit</span>
+    <span><b>O</b> parry</span><span><b>L</b> dodge</span><span><b>Shift</b> sprint</span>
+    <span><b>Q</b> haymaker</span><span><b>F</b> lock-on</span><span><b>Esc</b> pause</span>
+  </div>
+</div>
+
+<div id="intro-card" class="hidden">
+  <div class="intro-vs">NEXT OPPONENT <span id="intro-count"></span></div>
+  <div id="intro-school"></div>
+  <div id="intro-name"></div>
+  <div id="intro-ability"></div>
+  <div id="intro-tip"></div>
+</div>
+
+<div id="screen-title" class="screen">
+  <div class="card">
+    <div class="logo">MASCOT<br><span>MANIA</span></div>
+    <p class="tagline">You are <b>Herbie Husker</b>. Fight every mascot in the Big Ten, one at a time, all the way to the Iowa Hawkeye.</p>
+    <div class="buttons">
+      <button id="btn-continue" class="btn primary hidden"></button>
+      <button id="btn-new" class="btn">New game</button>
+    </div>
+    <div class="how">
+      <div><b>Look</b> Move the mouse to turn the camera.</div>
+      <div><b>Hit</b> P. Press again to chain a 3-hit combo.</div>
+      <div><b>Parry</b> O, just as an attack lands. A <span class="tag y">!</span> attack can be parried. Parrying staggers the enemy and bounces projectiles back.</div>
+      <div><b>Dodge</b> L. A <span class="tag r">!!</span> attack can't be parried, so dodge it or get behind cover.</div>
+      <div><b>Cover</b> Hay bales, fences and tires block projectiles, roars and shockwaves.</div>
+      <div><b>Haymaker</b> Q when the gold bar is full. Parries and hits fill it.</div>
+    </div>
+    <p id="no-mouse" class="warn hidden">Mascot Mania needs a keyboard and mouse.</p>
+  </div>
+</div>
+
+<div id="screen-pause" class="screen hidden">
+  <div class="card small">
+    <h2>Paused</h2>
+    <div class="buttons">
+      <button id="btn-resume" class="btn primary">Resume</button>
+      <button id="btn-mute" class="btn">Sound: on</button>
+      <button id="btn-quit" class="btn">Quit to title</button>
+    </div>
+  </div>
+</div>
+
+<div id="screen-defeat" class="screen hidden">
+  <div class="card small">
+    <h2>Herbie got knocked out!</h2>
+    <p id="defeat-text"></p>
+    <div class="buttons">
+      <button id="btn-retry" class="btn primary">Retry fight</button>
+      <button id="btn-defeat-quit" class="btn">Quit to title</button>
+    </div>
+  </div>
+</div>
+
+<div id="screen-victory" class="screen hidden">
+  <div class="card">
+    <div class="logo">GO BIG<br><span>RED!</span></div>
+    <p class="tagline">Herbie beat every mascot in the Big Ten, Herky included. <b>Mascot Mania Champion.</b></p>
+    <div class="buttons">
+      <button id="btn-again" class="btn primary">Play again</button>
+    </div>
+  </div>
+</div>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
