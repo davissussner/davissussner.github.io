@@ -1,8 +1,6 @@
 import * as THREE from 'three';
-import {
-  buildBiped, mesh, mat, chestLetter, earsCat, earsRound, earsPointy, snout, beak, duckBill,
-  cap, hardHat, helmet, lance, sword, spear, hammer, shield, ball, tail,
-} from './models.js';
+import { mesh, mat } from './models.js';
+import { BUILDERS, buildPup } from './characters.js';
 import { inCone, yawTo, flatDist } from './combat.js';
 
 const v3 = new THREE.Vector3();
@@ -659,7 +657,7 @@ function diveBomb({ rise = 0.8, hunt = 1.4, lock = 0.45, dive = 0.25, damage = 2
           marker = g.fx.marker(radius, 0x111111, 0.35);
         }
       } else if (phase === 'hunt') {
-        const follow = e.rage ? 5 : 3.5;
+        const follow = e.rage ? 3.8 : 2.8;
         target.x += (pl.pos.x - target.x) * Math.min(1, follow * dt);
         target.z += (pl.pos.z - target.z) * Math.min(1, follow * dt);
         marker.set(target.x, target.z);
@@ -678,7 +676,7 @@ function diveBomb({ rise = 0.8, hunt = 1.4, lock = 0.45, dive = 0.25, damage = 2
         e.pos.x += (target.x - e.pos.x) * Math.min(1, 10 * dt);
         e.pos.z += (target.z - e.pos.z) * Math.min(1, 10 * dt);
         Object.assign(e.pose, { armRz: -0.3, armLz: 0.3, pivotX: 0.8 });
-        if (e.t >= lock * (e.rage ? 0.7 : 1)) {
+        if (e.t >= lock * (e.rage ? 0.85 : 1)) {
           phase = 'dive';
           e.t = 0;
           g.audio.screech();
@@ -708,7 +706,7 @@ function diveBomb({ rise = 0.8, hunt = 1.4, lock = 0.45, dive = 0.25, damage = 2
           phase = 'rise';
           e.t = 0;
           e.invuln = true;
-        } else if (dives <= 0 && e.t > 1.2) return true;
+        } else if (dives <= 0 && e.t > 1.6) return true;
       }
       return false;
     },
@@ -792,76 +790,6 @@ function buckeyeMesh() {
 }
 
 // ======================================================================
-// Models
-// ======================================================================
-
-function claws(hand) {
-  for (let i = -1; i <= 1; i++) {
-    const c = mesh(new THREE.ConeGeometry(0.04, 0.3, 5), mat(0xf2f2f2), i * 0.08, -0.2, 0.08);
-    c.rotation.x = Math.PI;
-    hand.add(c);
-  }
-}
-
-// Horizontal bands around the torso (striped sweaters).
-function stripes(p, heights, color) {
-  for (const y of heights) {
-    const b = mesh(new THREE.CylinderGeometry(0.43, 0.43, 0.08, 16), mat(color), 0, y, 0);
-    b.scale.z = 0.82;
-    p.rig.add(b);
-  }
-}
-
-function brows(head, r, color = 0x111111, angle = 0.35) {
-  for (const s of [-1, 1]) {
-    const b = mesh(new THREE.BoxGeometry(r * 0.4, r * 0.09, r * 0.1), mat(color), s * r * 0.36, r * 0.42, r * 0.9);
-    b.rotation.z = s * angle;
-    head.add(b);
-  }
-}
-
-function buildHorseRider(o) {
-  const p = buildBiped(o);
-  const horse = new THREE.Group();
-  horse.position.y = -1;
-  p.pivot.add(horse);
-  const coat = mat(0xf2efe6);
-  const dark = mat(0x222222);
-  const body = mesh(new THREE.CapsuleGeometry(0.55, 1.5, 6, 12), coat, 0, 1.45, 0);
-  body.rotation.x = Math.PI / 2;
-  const neck = mesh(new THREE.CapsuleGeometry(0.28, 0.7, 4, 8), coat, 0, 2.05, 1.05);
-  neck.rotation.x = 0.6;
-  const head = mesh(new THREE.BoxGeometry(0.4, 0.4, 0.8), coat, 0, 2.45, 1.5);
-  const mane = mesh(new THREE.BoxGeometry(0.1, 0.25, 0.9), dark, 0, 2.3, 0.9);
-  mane.rotation.x = 0.6;
-  const tailM = mesh(new THREE.CapsuleGeometry(0.1, 0.7, 4, 6), dark, 0, 1.4, -1.25);
-  tailM.rotation.x = -0.5;
-  const blanket = mesh(new THREE.BoxGeometry(1.2, 0.08, 1.1), mat(0x990000), 0, 2.0, 0.05);
-  horse.add(body, neck, head, mane, tailM, blanket);
-  for (const s of [-1, 1]) {
-    const eye = mesh(new THREE.SphereGeometry(0.05, 6, 4), dark, s * 0.21, 2.55, 1.7);
-    horse.add(eye);
-  }
-  p.quadLegs = [];
-  for (const [x, z] of [[-0.3, 0.75], [0.3, 0.75], [-0.3, -0.75], [0.3, -0.75]]) {
-    const leg = new THREE.Group();
-    leg.position.set(x, 1.15, z);
-    leg.add(mesh(new THREE.CapsuleGeometry(0.12, 0.85, 4, 6), coat, 0, -0.55, 0));
-    leg.add(mesh(new THREE.CylinderGeometry(0.14, 0.15, 0.15, 8), dark, 0, -1.08, 0));
-    horse.add(leg);
-    p.quadLegs.push(leg);
-  }
-  // Seat the rider on the horse with legs astride; the rider's own legs don't walk.
-  p.rig.position.y = -1 + 1.05;
-  p.legL.rotation.z = 0.9;
-  p.legR.rotation.z = -0.9;
-  p.legL = new THREE.Object3D();
-  p.legR = new THREE.Object3D();
-  p.top += 1.05;
-  return p;
-}
-
-// ======================================================================
 // The Big Ten gauntlet, easiest to hardest.
 // ======================================================================
 
@@ -888,125 +816,48 @@ const ROSTER = [
     colors: { primary: 0x4e2a84, secondary: 0xffffff },
     abilityName: 'Pounce', tip: 'Leaps at you from range. Parry right as he lands.',
     ability: () => pounce(),
-    build() {
-      const p = buildBiped({ head: 0xa87945, hands: 0xa87945, shirt: 0x4e2a84, pants: 0x4e2a84, headR: 0.58 });
-      earsCat(p.head, p.headR, 0xa87945, 0xf5d7b0);
-      snout(p.head, p.headR, 0xf5e6cc, 0x3a2a1e, 0.35);
-      chestLetter(p, 'N', 0xffffff);
-      tail(p, 0xa87945);
-      return p;
-    },
   },
   {
     id: 'rutgers', school: 'Rutgers Scarlet Knights', name: 'The Scarlet Knight', short: 'The Knight', abbr: 'RU',
     colors: { primary: 0xcc0033, secondary: 0xc0c4ca },
     abilityName: 'Lance Charge', tip: "Can't be parried. Sidestep, or make him crash into cover.",
     ability: () => charge({ label: 'LANCE CHARGE' }),
-    build() {
-      const steel = 0xb8bcc2;
-      const p = buildBiped({ head: steel, hands: steel, shirt: steel, sleeve: steel, pants: 0xcc0033, eyes: false, headR: 0.5 });
-      helmet(p.head, p.headR, steel, 0xcc0033, false);
-      lance(p.handR);
-      const s = shield(p.handL, 0xcc0033, steel, false, 0.45);
-      s.rotation.y = Math.PI / 2;
-      chestLetter(p, 'R', 0xcc0033);
-      return p;
-    },
   },
   {
     id: 'indiana', school: 'Indiana Hoosiers', name: 'The Hoosier', short: 'The Hoosier', abbr: 'IU',
     colors: { primary: 0x990000, secondary: 0xeeedeb },
     abilityName: 'Fast Break', tip: 'Lobs basketballs. Parry to send them back, or hide behind cover.',
     ability: () => volley({ label: 'FAST BREAK', gravity: 14, speed: 14, damage: 7, shots: 3, interval: 0.4, radius: 0.32, makeMesh: basketballMesh, color: 0xe06a1b }),
-    build() {
-      const p = buildBiped({ shirt: 0x990000, pants: 0xeeedeb, sleeve: 0xf0c49a, shoes: 0xffffff });
-      cap(p.head, p.headR, 0x990000, 0x990000);
-      ball(p.handR);
-      chestLetter(p, 'IU', 0xeeedeb);
-      return p;
-    },
   },
   {
     id: 'illinois', school: 'Illinois Fighting Illini', name: 'The Illini Guardian', short: 'The Guardian', abbr: 'ILL',
     colors: { primary: 0xff5f05, secondary: 0x13294b },
     abilityName: 'Shield Wall', tip: 'Blocks every hit from the front. Circle behind him, or use the Haymaker.',
     ability: () => shieldWall(),
-    build() {
-      const p = buildBiped({ shirt: 0x13294b, sleeve: 0xff5f05, pants: 0x13294b, bulk: 1.1 });
-      helmet(p.head, p.headR, 0xff5f05, 0x13294b);
-      const s = shield(p.handL, 0xff5f05, 0x13294b, true, 0.8);
-      const letter = chestLetter(p, 'I', 0xff5f05);
-      letter.position.z = 0.38;
-      s.add(mesh(new THREE.BoxGeometry(0.2, 0.7, 0.02), mat(0x13294b), 0, 0, 0.07));
-      return p;
-    },
   },
   {
     id: 'maryland', school: 'Maryland Terrapins', name: 'Testudo', short: 'Testudo', abbr: 'UMD',
     colors: { primary: 0xe03a3e, secondary: 0xffd520 },
     abilityName: 'Shell Spin', tip: "Invincible in his shell. Dodge the spin, then punish him while he's dizzy.",
     ability: () => shellSpin(),
-    build() {
-      const p = buildBiped({ head: 0x7a8c5a, hands: 0x7a8c5a, shirt: 0xe03a3e, pants: 0x1a1a1a, headR: 0.52 });
-      snout(p.head, p.headR, 0x8fa36a, 0x333333, 0.3);
-      const sh = mesh(new THREE.SphereGeometry(0.75, 18, 12, 0, Math.PI * 2, 0, Math.PI / 2), mat(0x6b5a2e, { roughness: 0.4 }), 0, 1.35, -0.3);
-      sh.rotation.x = -Math.PI / 2;
-      sh.scale.set(1, 1, 0.9);
-      const rim = mesh(new THREE.TorusGeometry(0.74, 0.07, 6, 24), mat(0xffd520), 0, 1.35, -0.3);
-      p.rig.add(sh, rim);
-      chestLetter(p, 'M', 0xffd520);
-      return p;
-    },
   },
   {
     id: 'purdue', school: 'Purdue Boilermakers', name: 'Purdue Pete', short: 'Purdue Pete', abbr: 'PUR',
     colors: { primary: 0xcfb991, secondary: 0x1a1a1a },
     abilityName: 'Hammer Time', tip: 'Slams the ground. Roll through the shockwave, or duck behind cover.',
     ability: () => groundPound(),
-    build() {
-      const p = buildBiped({ shirt: 0xcfb991, pants: 0x1a1a1a, bulk: 1.1 });
-      hardHat(p.head, p.headR, 0xcfb991);
-      hammer(p.handR);
-      chestLetter(p, 'P', 0x1a1a1a);
-      const chin = mesh(new THREE.BoxGeometry(0.5, 0.2, 0.25), mat(0xf0c49a), 0, -0.42, 0.35);
-      p.head.add(chin);
-      return p;
-    },
   },
   {
     id: 'minnesota', school: 'Minnesota Golden Gophers', name: 'Goldy Gopher', short: 'Goldy', abbr: 'UMN',
     colors: { primary: 0x7a0019, secondary: 0xffcc33 },
     abilityName: 'Tunnel Ambush', tip: 'Burrows toward you. When the mound turns red, roll away!',
     ability: () => burrow(),
-    build() {
-      const p = buildBiped({ head: 0xc79a3a, hands: 0xc79a3a, shirt: 0x7a0019, pants: 0xffcc33, headR: 0.6 });
-      earsRound(p.head, p.headR, 0xc79a3a, 0xe8c07a, 0.22);
-      snout(p.head, p.headR, 0xe8c07a, 0x3a2a1e, 0.35);
-      for (const s of [-1, 1]) p.head.add(mesh(new THREE.BoxGeometry(0.1, 0.16, 0.05), mat(0xffffff), s * 0.055, -0.36, 0.62));
-      chestLetter(p, 'M', 0xffcc33);
-      return p;
-    },
   },
   {
     id: 'wisconsin', school: 'Wisconsin Badgers', name: 'Bucky Badger', short: 'Bucky', abbr: 'WIS',
     colors: { primary: 0xc5050c, secondary: 0xffffff },
     abilityName: 'Badger Frenzy', tip: 'A flurry of fast swipes. Parry any one of them to stagger him.',
     ability: () => frenzy({ label: 'BADGER FRENZY' }),
-    build() {
-      const p = buildBiped({ head: 0x3a2a1e, hands: 0x3a2a1e, shirt: 0xc5050c, pants: 0x1a1a1a, headR: 0.58 });
-      p.head.add(mesh(new THREE.BoxGeometry(0.16, 0.08, 1.0), mat(0xffffff), 0, 0.5, 0.05));
-      for (const s of [-1, 1]) {
-        const cheek = mesh(new THREE.SphereGeometry(0.2, 10, 8), mat(0xffffff), s * 0.32, -0.12, 0.38);
-        p.head.add(cheek);
-      }
-      earsRound(p.head, p.headR, 0x3a2a1e, 0xffffff, 0.2);
-      snout(p.head, p.headR, 0xf2e8da, 0x111111, 0.4);
-      stripes(p, [1.2, 1.55], 0xffffff);
-      chestLetter(p, 'W', 0xffffff);
-      claws(p.handR);
-      claws(p.handL);
-      return p;
-    },
   },
   {
     id: 'ucla', school: 'UCLA Bruins', name: 'Joe Bruin', short: 'Joe Bruin', abbr: 'UCLA',
@@ -1014,33 +865,18 @@ const ROSTER = [
     abilityName: 'Bear Hug', tip: "Can't be parried. Dodge the lunge, and he's wide open after.",
     ability: () => bearHug(),
     scale: 1.1,
-    build() {
-      const p = buildBiped({ head: 0x7a4e2d, hands: 0x7a4e2d, shirt: 0x2d68c4, sleeve: 0xf2a900, pants: 0x7a4e2d, bulk: 1.2, headR: 0.62 });
-      earsRound(p.head, p.headR, 0x7a4e2d, 0xc79a6b);
-      snout(p.head, p.headR, 0xc79a6b, 0x111111, 0.4);
-      chestLetter(p, 'B', 0xf2a900);
-      return p;
-    },
   },
   {
     id: 'washington', school: 'Washington Huskies', name: 'Harry the Husky', short: 'Harry', abbr: 'WASH',
     colors: { primary: 0x4b2e83, secondary: 0xb7a57a },
     abilityName: 'Call the Pack', tip: 'Howls to summon two pups. Knock them out fast.',
     ability: () => howl(),
-    build: () => buildHusky(1),
   },
   {
     id: 'oregon', school: 'Oregon Ducks', name: 'The Duck', short: 'The Duck', abbr: 'UO',
     colors: { primary: 0x154733, secondary: 0xfee123 },
     abilityName: 'Afterburner Dash', tip: 'Three lightning dashes through you. Parry each one as it arrives.',
     ability: () => duckDash(),
-    build() {
-      const p = buildBiped({ head: 0xffffff, hands: 0xffffff, shirt: 0x154733, sleeve: 0xfee123, pants: 0x154733, shoes: 0xf29b24, headR: 0.58 });
-      duckBill(p.head, p.headR, 0xf29b24);
-      cap(p.head, p.headR, 0x154733, 0xfee123);
-      chestLetter(p, 'O', 0xfee123);
-      return p;
-    },
   },
   {
     id: 'michigan-state', school: 'Michigan State Spartans', name: 'Sparty', short: 'Sparty', abbr: 'MSU',
@@ -1050,16 +886,6 @@ const ROSTER = [
       volley({ label: 'SPEAR THROW', shots: 1, speed: 24, damage: 12, windup: 0.6, makeMesh: spearMesh, orient: true, radius: 0.35, color: 0xd8dde3 }),
       lungeStrike({ label: 'SHIELD BASH', damage: 11 }),
     ),
-    build() {
-      const p = buildBiped({ shirt: 0x18453b, pants: 0x18453b, sleeve: 0xf0c49a, bulk: 1.15 });
-      helmet(p.head, p.headR, 0x18453b, 0xffffff);
-      p.head.add(mesh(new THREE.BoxGeometry(0.5, 0.28, 0.3), mat(0xf0c49a), 0, -0.45, 0.32));
-      brows(p.head, p.headR, 0x3a2a1e, 0.25);
-      spear(p.handR);
-      shield(p.handL, 0x18453b, 0xffffff, true, 0.65);
-      chestLetter(p, 'S', 0xffffff);
-      return p;
-    },
   },
   {
     id: 'usc', school: 'USC Trojans', name: 'Tommy Trojan & Traveler', short: 'Traveler', abbr: 'USC',
@@ -1067,27 +893,12 @@ const ROSTER = [
     abilityName: 'Cavalry Charge', tip: 'Two charges that steer toward you. Dodge late, or bait him into cover.',
     ability: () => charge({ label: 'CAVALRY CHARGE', windup: 0.7, speed: 21, maxTime: 1.4, damage: 20, homing: 1.1, passes: 2 }),
     radius: 1.1,
-    build() {
-      const p = buildHorseRider({ shirt: 0x990000, sleeve: 0xf0c49a, pants: 0x990000 });
-      helmet(p.head, p.headR, 0xffc72c, 0x990000);
-      sword(p.handR);
-      return p;
-    },
   },
   {
     id: 'penn-state', school: 'Penn State Nittany Lions', name: 'The Nittany Lion', short: 'The Nittany Lion', abbr: 'PSU',
     colors: { primary: 0x041e42, secondary: 0xffffff },
     abilityName: 'Mountain Roar', tip: "Stuns you if you're in the open. Put cover between you and him.",
     ability: () => roar(),
-    build() {
-      const p = buildBiped({ head: 0xe8dcc0, hands: 0xe8dcc0, shirt: 0x041e42, sleeve: 0xffffff, pants: 0x041e42, bulk: 1.1 });
-      earsRound(p.head, p.headR, 0xe8dcc0, 0x3a2a1e, 0.22);
-      snout(p.head, p.headR, 0xf6efe0, 0x3a2a1e, 0.4);
-      brows(p.head, p.headR, 0x8a7a5a, 0.3);
-      chestLetter(p, 'PS', 0xffffff);
-      tail(p, 0xe8dcc0, 1);
-      return p;
-    },
   },
   {
     id: 'michigan', school: 'Michigan Wolverines', name: 'The Wolverine', short: 'The Wolverine', abbr: 'MICH',
@@ -1107,19 +918,6 @@ const ROSTER = [
         g.ui.setEnraged(true);
       }
     },
-    build() {
-      const p = buildBiped({ head: 0x4a3222, hands: 0x4a3222, shirt: 0x00274c, sleeve: 0xffcb05, pants: 0x00274c, headR: 0.56 });
-      const band = mesh(new THREE.TorusGeometry(0.5, 0.07, 6, 20), mat(0xc9a26b), 0, 0.15, 0);
-      band.rotation.x = Math.PI / 2;
-      p.head.add(band);
-      earsRound(p.head, p.headR, 0x4a3222, null, 0.18);
-      snout(p.head, p.headR, 0x2e1f15, 0x111111, 0.4);
-      brows(p.head, p.headR, 0x111111, 0.45);
-      claws(p.handR);
-      claws(p.handL);
-      chestLetter(p, 'M', 0xffcb05);
-      return p;
-    },
   },
   {
     id: 'ohio-state', school: 'Ohio State Buckeyes', name: 'Brutus Buckeye', short: 'Brutus', abbr: 'OSU',
@@ -1129,17 +927,6 @@ const ROSTER = [
       label: 'BUCKEYE BOMBS', shots: 2, interval: 0.8, perShot: 3, spread: 0.4, speed: 8.5, rolling: true,
       radius: 0.45, explode: { radius: 2.4, damage: 14 }, fuse: 2.8, makeMesh: buckeyeMesh, color: 0x5b3416, windup: 0.6,
     }),
-    build() {
-      const p = buildBiped({ head: 0x5b3416, shirt: 0xbb0000, pants: 0x666666, headR: 0.75, eyeY: 0.02 });
-      const patch = mesh(new THREE.SphereGeometry(0.45, 16, 10), mat(0xc9a26b), 0, 0.38, 0.35);
-      patch.scale.set(1, 0.7, 0.6);
-      p.head.add(patch);
-      stripes(p, [1.15, 1.4, 1.65], 0x888888);
-      const smile = mesh(new THREE.TorusGeometry(0.22, 0.03, 6, 12, Math.PI), mat(0x2a1508), 0, -0.25, 0.7);
-      smile.rotation.z = Math.PI;
-      p.head.add(smile);
-      return p;
-    },
   },
   {
     id: 'iowa', school: 'Iowa Hawkeyes', name: 'Herky the Hawk', short: 'Herky', abbr: 'IOWA',
@@ -1148,67 +935,43 @@ const ROSTER = [
     boss: true,
     scale: 1.25,
     ability: () => choice(
-      diveBomb(),
+      diveBomb({ lock: 0.65, damage: 16, radius: 2.5 }),
       volley({
-        label: 'FEATHER VOLLEY', shots: (e) => (e.rage ? 4 : 3), perShot: (e) => (e.rage ? 7 : 5), spread: 0.16,
-        speed: 17, damage: 6, windup: 0.5, interval: 0.45, makeMesh: featherMesh, orient: true, color: 0xffcd00, minDist: 2.5, sfx: 'screech',
+        label: 'FEATHER VOLLEY', shots: 3, perShot: (e) => (e.rage ? 6 : 5), spread: 0.17,
+        speed: 14, damage: 5, windup: 0.5, interval: 0.45, makeMesh: featherMesh, orient: true, color: 0xffcd00, minDist: 2.5, sfx: 'screech',
       }),
     ),
     passive(e, dt, g) {
       if (!e.rage && e.hp < e.maxHp * 0.5) {
         e.rage = true;
-        e.speedMul = 1.3;
-        e.windupMul = 0.75;
-        e.dmgMul = 1.15;
-        e.abilityCd = Math.min(e.abilityCd, 1);
+        e.speedMul = 1.15;
+        e.windupMul = 0.9;
+        e.dmgMul = 1.05;
+        e.abilityCd = Math.min(e.abilityCd, 2);
         g.audio.screech();
         g.shake(0.6);
         g.ui.callout('HERKY IS FURIOUS!', 'danger', 2);
         g.ui.setEnraged(true);
       }
     },
-    build() {
-      const p = buildBiped({ head: 0x111111, hands: 0xffcd00, shirt: 0xffcd00, sleeve: 0x111111, pants: 0x111111, shoes: 0xffcd00, headR: 0.6, eyeY: 0.14 });
-      beak(p.head, p.headR, 0xffcd00, 0.9, true);
-      brows(p.head, p.headR, 0xffffff, 0.5);
-      p.head.add(mesh(new THREE.BoxGeometry(0.12, 0.3, 0.6), mat(0x111111), 0, 0.65, -0.2));
-      for (const [arm, s] of [[p.armL, 1], [p.armR, -1]]) {
-        for (let i = 0; i < 3; i++) {
-          const f = mesh(new THREE.BoxGeometry(0.05, 0.7 - i * 0.12, 0.35), mat(i % 2 ? 0xffcd00 : 0x111111), s * (0.12 + i * 0.03), -0.3 - i * 0.18, -0.05);
-          arm.add(f);
-        }
-      }
-      chestLetter(p, 'I', 0x111111);
-      return p;
-    },
   },
 ];
-
-function buildHusky(size) {
-  const p = buildBiped({ head: 0x9aa0a8, hands: 0x9aa0a8, shirt: 0x4b2e83, sleeve: 0xb7a57a, pants: 0x4b2e83, headR: 0.58 });
-  earsPointy(p.head, p.headR, 0x9aa0a8, 0xffffff);
-  p.head.add(mesh(new THREE.SphereGeometry(0.4, 12, 10), mat(0xffffff), 0, -0.12, 0.3));
-  snout(p.head, p.headR, 0xffffff, 0x111111, 0.45);
-  chestLetter(p, 'W', 0xb7a57a);
-  tail(p, 0x9aa0a8, 0.6);
-  return p;
-}
 
 export const PUP = {
   id: 'pup', school: 'Washington Huskies', name: 'Husky Pup', short: 'Pup', colors: { primary: 0x4b2e83, secondary: 0xb7a57a },
   hp: 20, speed: 6.3, damage: 4, windup: 0.5, interval: 1.6, parryMult: 1.3, poise: 5, combo: 1, range: 1.5, recover: 0.5,
-  scale: 0.55, build: () => buildHusky(0.55),
+  scale: 0.55, build: buildPup,
 };
 
 const ENEMY_HP_SCALE = 0.9; // difficulty: enemies have 10% less health
 
 export const MASCOTS = ROSTER.map((m, i) => {
   const base = tier(i);
-  const def = { ...base, ...m, index: i };
+  const def = { ...base, ...m, index: i, build: BUILDERS[m.id] };
   if (m.boss) {
     Object.assign(def, {
-      hp: 420, damage: 16, speed: 5.8, windup: 0.44, interval: 1.0, parryMult: 0.65,
-      poise: 75, combo: 3, abilityCd: 5, range: 2.4, recover: 0.4,
+      hp: 340, damage: 13, speed: 5.2, windup: 0.54, interval: 1.35, parryMult: 0.82,
+      poise: 60, combo: 2, abilityCd: 6.5, range: 2.4, recover: 0.55,
     });
   }
   def.hp = Math.round(def.hp * ENEMY_HP_SCALE);

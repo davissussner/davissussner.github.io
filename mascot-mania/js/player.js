@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { buildHerbie, collectMaterials, mesh, mat } from './models.js';
+import { collectMaterials, mesh, mat } from './models.js';
+import { buildHerbie } from './characters.js';
 import { inCone, yawTo, angleDiff, flatDist } from './combat.js';
 
 const COMBO = [
