@@ -2,8 +2,8 @@
 // Shortest distance orders. Launch order and launch power/angle are drawn
 // independently of who's who, so every player has exactly a 1/N chance.
 
-import { shuffle, rand } from '../fair.js?v=2';
-import { STEP, fit, runSim, simulateHeadless, throttle, poly, tag, short, clamp, ease, banner, shade, initial, textOn, setHud, esc } from '../stage.js?v=2';
+import { shuffle, rand } from '../fair.js?v=3';
+import { STEP, fit, runSim, simulateHeadless, throttle, poly, tag, short, clamp, ease, banner, shade, initial, textOn, setHud, esc } from '../stage.js?v=3';
 
 const { Engine, Bodies, Body, Composite, Constraint, Events } = Matter;
 
@@ -19,10 +19,30 @@ const LOAD_FINAL = 160;
 const VERDICT_STEPS = 60;
 const SWING = 22;
 const REST_STEPS = 40;
-const MAX_FLY = 12 * 60;
+const MAX_FLY = 18 * 60;
 const FINAL = 80;
-const FIELD_END = 4000;
+const FIELD_END = 6400;
 const BAR_X = FIELD_END - 260;
+
+// Ground zones. Mud stops you dead, boost pads relaunch you, the lake sinks you
+// (unless you land on the boat, which ferries you to the far shore).
+const ZONES = [
+  { type: 'mud', x1: 700, x2: 950 },
+  { type: 'boost', x1: 1150, x2: 1260 },
+  { type: 'mud', x1: 1700, x2: 1900 },
+  { type: 'boost', x1: 2080, x2: 2190 },
+  { type: 'lake', x1: 2500, x2: 3500 },
+  { type: 'boost', x1: 3800, x2: 3910 },
+  { type: 'mud', x1: 4300, x2: 4560 },
+  { type: 'boost', x1: 4950, x2: 5060 },
+  { type: 'mud', x1: 5450, x2: 5700 },
+];
+const zoneAt = x => ZONES.find(z => x >= z.x1 && x <= z.x2);
+const WATER_Y = GROUND - 30;
+const BOAT_PATROL = [2640, 3120]; // drifts back and forth here waiting for a passenger
+const BOAT_DOCK = 3360;
+const BOAT_Y = GROUND - 28;
+const BOAT_W = 190;
 
 const armTip = a => ({ x: PIVOT.x + ARM * Math.cos(a), y: PIVOT.y - ARM * Math.sin(a) });
 
@@ -33,14 +53,12 @@ function buildField() {
     Bodies.rectangle(-180, GROUND - 600, 60, 1400, { ...S, label: 'wall' }),
     Bodies.rectangle(FIELD_END + 30, GROUND - 600, 60, 1400, { ...S, label: 'wall' }),
   ];
-  for (const x of [560, 1180, 2050]) statics.push(Bodies.circle(x, GROUND + 12, 48, { ...S, label: 'mushroom', restitution: 1.05, friction: 0.2 }));
-  for (const [x, y] of [[820, 400], [1320, 330], [1720, 430], [2400, 360]]) statics.push(Bodies.circle(x, y, 28, { ...S, label: 'bumper', restitution: 1 }));
-  for (const x of [950, 1560]) statics.push(Bodies.rectangle(x, GROUND - 7, 120, 14, { ...S, label: 'tramp', restitution: 1.25, friction: 0.3 }));
-  for (const [x, h] of [[2250, 70], [2900, 110]]) statics.push(Bodies.rectangle(x, GROUND - h / 2, 50, h, { ...S, label: 'hay', friction: 0.9 }));
-
-  const crates = [[1420, GROUND - 20], [1462, GROUND - 20], [1441, GROUND - 62]].map(([x, y]) =>
-    Bodies.rectangle(x, y, 40, 40, { label: 'crate', density: 0.0015, friction: 0.7, frictionAir: 0.01 }));
-  return { statics, crates };
+  for (const x of [520, 1480, 4150]) statics.push(Bodies.circle(x, GROUND + 12, 48, { ...S, label: 'mushroom', restitution: 1.05, friction: 0.2 }));
+  for (const [x, y] of [[900, 380], [1550, 330], [2300, 420], [3050, 300], [4700, 380]]) statics.push(Bodies.circle(x, y, 28, { ...S, label: 'bumper', restitution: 1 }));
+  for (const x of [1350, 5250]) statics.push(Bodies.rectangle(x, GROUND - 7, 120, 14, { ...S, label: 'tramp', restitution: 1.25, friction: 0.3 }));
+  const boat = Bodies.rectangle(BOAT_PATROL[0], BOAT_Y, BOAT_W, 18, { ...S, label: 'boat', friction: 1, chamfer: { radius: 6 } });
+  statics.push(boat);
+  return { statics, boat };
 }
 
 function makeDoll(x, y, group) {
@@ -70,12 +88,13 @@ export function createSim(players, { headless = false } = {}) {
   const engine = Engine.create();
   engine.positionIterations = 8;
   engine.velocityIterations = 6;
-  const { statics, crates } = buildField();
-  Composite.add(engine.world, [...statics, ...crates]);
+  const { statics, boat: boatBody } = buildField();
+  Composite.add(engine.world, statics);
+  const boat = { body: boatBody, x: BOAT_PATROL[0], dir: 1, state: 'idle', rider: null };
 
   const slots = shuffle(players).map(player => ({
     player,
-    v: rand(14, 22),
+    v: rand(15, 25),
     angle: rand(35, 62) * DEG,
     spin: rand(-0.3, 0.3),
     doll: null,
@@ -85,7 +104,7 @@ export function createSim(players, { headless = false } = {}) {
 
   const sim = {
     t: 0, idx: 0, phase: 'load', phaseT: 0, armA: REST_A, restFor: 0,
-    slots, statics, crates, done: false, loser: null, loserSlot: null, events: [], lastLanded: null,
+    slots, statics, boat, done: false, loser: null, loserSlot: null, events: [], lastLanded: null,
   };
 
   Events.on(engine, 'collisionStart', e => {
@@ -115,19 +134,83 @@ export function createSim(players, { headless = false } = {}) {
     sim.events.push({ type: 'launch' });
   }
 
+  const damp = (doll, k) => {
+    for (const b of doll.parts) {
+      Body.setVelocity(b, { x: b.velocity.x * k, y: b.velocity.y * k });
+      Body.setAngularVelocity(b, b.angularVelocity * k);
+    }
+  };
+
+  function moveBoat() {
+    if (boat.state === 'ride') {
+      const dx = 2.6;
+      boat.x += dx;
+      for (const b of boat.rider.doll.parts) Body.translate(b, { x: dx, y: 0 });
+      if (boat.x >= BOAT_DOCK) {
+        // Toss the passenger onto the far shore
+        for (const b of boat.rider.doll.parts) Body.setVelocity(b, { x: 9, y: -8 });
+        boat.rider = null;
+        boat.state = 'return';
+        sim.events.push({ type: 'launch' });
+      }
+    } else if (boat.state === 'return') {
+      boat.x -= 3.5;
+      if (boat.x <= BOAT_PATROL[1]) {
+        boat.state = 'idle';
+        boat.dir = -1;
+      }
+    } else {
+      boat.x += boat.dir * 1.2;
+      if (boat.x >= BOAT_PATROL[1]) boat.dir = -1;
+      if (boat.x <= BOAT_PATROL[0]) boat.dir = 1;
+    }
+    Body.setPosition(boat.body, { x: boat.x, y: BOAT_Y + Math.sin(sim.t * 0.05) * 2 });
+  }
+
   sim.step = () => {
     sim.t++;
     sim.phaseT++;
+    moveBoat();
     Engine.update(engine, STEP);
 
     for (const s of slots) {
       if (!s.doll) continue;
-      const p = s.doll.torso.position;
+      const d = s.doll;
+      const p = d.torso.position;
       if (p.y > GROUND + 200) {
         // Tunneled through the ground: pop the whole doll back on top.
-        for (const b of s.doll.parts) Body.translate(b, { x: 0, y: GROUND - 60 - p.y });
+        for (const b of d.parts) Body.translate(b, { x: 0, y: GROUND - 60 - p.y });
       }
-      s.x = s.doll.torso.position.x;
+      const zone = zoneAt(p.x);
+      const low = p.y > GROUND - 45;
+      if (zone && low && zone.type === 'mud') {
+        damp(d, 0.82);
+        if (!s.inMud) sim.events.push({ type: 'mud' });
+        s.inMud = true;
+      } else {
+        s.inMud = false;
+      }
+      if (zone && low && zone.type === 'boost' && sim.t - (s.boostAt ?? -99) > 40) {
+        s.boostAt = sim.t;
+        zone.flash = 1;
+        const vx = Math.max(d.torso.velocity.x, 2) + 8;
+        for (const b of d.parts) Body.setVelocity(b, { x: vx, y: -9 });
+        sim.events.push({ type: 'boost' });
+      }
+      if (zone && zone.type === 'lake' && p.y > WATER_Y - 2 && boat.rider !== s) {
+        damp(d, 0.9);
+        if (!s.inWater) sim.events.push({ type: 'splash' });
+        s.inWater = true;
+      } else {
+        s.inWater = false;
+      }
+      // Landed on the boat? All aboard for the far shore.
+      if (boat.state === 'idle' && Math.abs(p.x - boat.x) < BOAT_W / 2 - 8 && p.y < BOAT_Y - 9 && p.y > BOAT_Y - 70 && d.torso.velocity.y > -1) {
+        boat.state = 'ride';
+        boat.rider = s;
+        sim.events.push({ type: 'boat' });
+      }
+      s.x = d.torso.position.x;
     }
 
     const cur = slots[sim.idx];
@@ -150,7 +233,7 @@ export function createSim(players, { headless = false } = {}) {
         cur.trail.push({ x: tor.position.x, y: tor.position.y });
         if (cur.trail.length > 36) cur.trail.shift();
       }
-      const still = tor.speed < 0.3 && tor.angularSpeed < 0.05;
+      const still = tor.speed < 0.3 && tor.angularSpeed < 0.05 && boat.rider !== cur;
       sim.restFor = still ? sim.restFor + 1 : 0;
       if (sim.restFor >= REST_STEPS || sim.phaseT >= MAX_FLY) {
         cur.trail.length = 0;
@@ -303,6 +386,81 @@ function renderer(canvas, sim, view) {
     ctx.fillStyle = '#34a36f';
     ctx.fillRect(viewL, GROUND, viewR - viewL, 4);
 
+    // Mud pits and boost pads
+    for (const z of ZONES) {
+      if (z.x2 < viewL || z.x1 > viewR) continue;
+      z.flash = Math.max(0, (z.flash || 0) - dt * 0.003);
+      const mid = (z.x1 + z.x2) / 2;
+      if (z.type === 'mud') {
+        ctx.fillStyle = '#4a3222';
+        ctx.beginPath();
+        ctx.ellipse(mid, GROUND + 2, (z.x2 - z.x1) / 2, 16, 0, Math.PI, 0);
+        ctx.fill();
+        ctx.fillRect(z.x1, GROUND, z.x2 - z.x1, 14);
+        ctx.fillStyle = '#6b4a33';
+        for (let i = 0; i < 5; i++) {
+          const bx = z.x1 + (z.x2 - z.x1) * (0.15 + i * 0.17);
+          const br = 3 + ((sim.t * 0.05 + i * 1.7) % 4);
+          ctx.beginPath();
+          ctx.arc(bx, GROUND - 4, br, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        tag(ctx, 'MUD', mid, GROUND + 40, 16, '#c69a6d');
+      } else if (z.type === 'boost') {
+        ctx.save();
+        ctx.shadowColor = '#3de0ff';
+        ctx.shadowBlur = 16 + z.flash * 30;
+        ctx.fillStyle = z.flash ? shade('#3de0ff', z.flash * 0.6) : '#1e8fb0';
+        ctx.fillRect(z.x1, GROUND - 6, z.x2 - z.x1, 8);
+        ctx.restore();
+        ctx.fillStyle = '#bff6ff';
+        const off = (sim.t * 1.5) % 30;
+        for (let x = z.x1 + off; x < z.x2 - 10; x += 30) {
+          ctx.beginPath();
+          ctx.moveTo(x, GROUND - 5);
+          ctx.lineTo(x + 10, GROUND - 2);
+          ctx.lineTo(x, GROUND + 1);
+          ctx.closePath();
+          ctx.fill();
+        }
+        tag(ctx, 'BOOST', mid, GROUND + 40, 16, '#3de0ff');
+      } else if (z.type === 'lake') {
+        ctx.fillStyle = '#0d3b66';
+        ctx.fillRect(z.x1, WATER_Y, z.x2 - z.x1, GROUND + 60 - WATER_Y);
+        ctx.fillStyle = '#34a36f';
+        for (const sx of [z.x1, z.x2]) {
+          for (let i = -2; i <= 2; i++) ctx.fillRect(sx + i * 9 - 1.5, WATER_Y - 22 - Math.abs(i) * -4, 3, 26 - Math.abs(i) * 4);
+        }
+      }
+    }
+
+    // Boat
+    {
+      const b = sim.boat.body;
+      const { x, y } = b.position;
+      if (x + 100 > viewL && x - 100 < viewR) {
+        ctx.fillStyle = '#e76f51';
+        ctx.beginPath();
+        ctx.moveTo(x - BOAT_W / 2 - 10, y - 9);
+        ctx.lineTo(x + BOAT_W / 2 + 10, y - 9);
+        ctx.lineTo(x + BOAT_W / 2 - 14, y + 14);
+        ctx.lineTo(x - BOAT_W / 2 + 14, y + 14);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = '#f4f1ff';
+        ctx.fillRect(x - BOAT_W / 2 + 4, y - 2, BOAT_W - 8, 4);
+        ctx.fillStyle = '#8b5a2b';
+        ctx.fillRect(x - 2, y - 70, 4, 61);
+        ctx.fillStyle = '#ffd23f';
+        ctx.beginPath();
+        ctx.moveTo(x + 2, y - 70);
+        ctx.lineTo(x + 34, y - 58);
+        ctx.lineTo(x + 2, y - 46);
+        ctx.closePath();
+        ctx.fill();
+      }
+    }
+
     // Distance markers every 25 ft
     const markSize = clamp(11 * dpr / S, 10, 60);
     for (let d = 250; d < FIELD_END - 300; d += 250) {
@@ -383,33 +541,7 @@ function renderer(canvas, sim, view) {
           ctx.lineTo(b.position.x + i, GROUND);
         }
         ctx.stroke();
-      } else if (b.label === 'hay') {
-        ctx.fillStyle = '#e9c46a';
-        poly(ctx, b);
-        ctx.fill();
-        ctx.strokeStyle = '#b8913b';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        for (let y = b.bounds.min.y + 12; y < b.bounds.max.y; y += 14) {
-          ctx.moveTo(b.bounds.min.x + 4, y);
-          ctx.lineTo(b.bounds.max.x - 4, y);
-        }
-        ctx.stroke();
       }
-    }
-
-    for (const c of sim.crates) {
-      ctx.fillStyle = '#a0703c';
-      ctx.strokeStyle = '#5e3e1c';
-      ctx.lineWidth = 3;
-      poly(ctx, c);
-      ctx.fill();
-      ctx.stroke();
-      const v = c.vertices;
-      ctx.beginPath();
-      ctx.moveTo(v[0].x, v[0].y); ctx.lineTo(v[2].x, v[2].y);
-      ctx.moveTo(v[1].x, v[1].y); ctx.lineTo(v[3].x, v[3].y);
-      ctx.stroke();
     }
 
     // Catapult
@@ -485,6 +617,17 @@ function renderer(canvas, sim, view) {
         ctx.fill();
       }
     }
+    const lake = ZONES.find(z => z.type === 'lake');
+    if (lake.x2 > viewL && lake.x1 < viewR) {
+      ctx.fillStyle = 'rgba(40, 140, 220, .55)';
+      ctx.beginPath();
+      ctx.moveTo(lake.x1, GROUND + 60);
+      for (let x = lake.x1; x <= lake.x2; x += 20) ctx.lineTo(x, WATER_Y + Math.sin(x * 0.03 + sim.t * 0.08) * 3);
+      ctx.lineTo(lake.x2, GROUND + 60);
+      ctx.closePath();
+      ctx.fill();
+      tag(ctx, 'LAKE', (lake.x1 + lake.x2) / 2, GROUND + 40, 16, '#8fd3ff');
+    }
     for (const sl of sim.slots) {
       if (!sl.doll) continue;
       const hd = sl.doll.head.position;
@@ -556,6 +699,10 @@ export default {
       else if (e.type === 'boing') boing();
       else if (e.type === 'thud') thud();
       else if (e.type === 'land') (e.verdict === 'shortest' ? sfx.buzz : e.verdict === 'safe' ? sfx.fanfare : sfx.ding)();
+      else if (e.type === 'boost') sfx.go();
+      else if (e.type === 'mud') thud();
+      else if (e.type === 'splash') sfx.whoosh();
+      else if (e.type === 'boat') sfx.ding(4);
       else if (e.type === 'last') sfx.womp();
     }, 2400, () => view.speed);
   },

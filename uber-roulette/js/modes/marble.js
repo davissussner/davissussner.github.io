@@ -2,42 +2,88 @@
 // Fairness: names are shuffled into start slots, so any bias in the course
 // lands on a random person. Each player loses with probability exactly 1/N.
 
-import { shuffle } from '../fair.js?v=2';
-import { STEP, fit, runSim, simulateHeadless, throttle, poly, tag, short, clamp, ease, banner, shade, setHud, esc } from '../stage.js?v=2';
+import { shuffle } from '../fair.js?v=3';
+import { STEP, fit, runSim, simulateHeadless, throttle, poly, tag, short, clamp, ease, banner, shade, setHud, esc } from '../stage.js?v=3';
 
 const { Engine, Bodies, Body, Composite, Events } = Matter;
 
 const W = 400;
 const R = 9;
-const FINISH_Y = 2400;
-const FLOOR_Y = 2520;
+const FINISH_Y = 3130;
+const FLOOR_Y = 3250;
 const COUNTDOWN = 180;
-const STUCK_STEPS = 150;
-const TIMEOUT = 120 * 60;
-const GRAVITY = 0.00065; // Matter default is 0.001; lower = slower, easier-to-follow race
+const STUCK_STEPS = 240;
+const TIMEOUT = 150 * 60;
+const GRAVITY = 0.0008; // Matter default is 0.001
 
 const MARBLE = 0x0001;
 const STATIC = 0x0002;
 const PADDLE = 0x0004;
 
+const distToSeg = (x, y, [x1, y1, x2, y2]) => {
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const t = clamp(((x - x1) * dx + (y - y1) * dy) / (dx * dx + dy * dy), 0, 1);
+  return Math.hypot(x - (x1 + t * dx), y - (y1 + t * dy));
+};
+
 function buildCourse() {
   const S = { isStatic: true, collisionFilter: { category: STATIC } };
+  const P = { density: 0.05, frictionAir: 0, friction: 0.05, restitution: 0.5, label: 'paddle', collisionFilter: { category: PADDLE, mask: MARBLE } };
   const statics = [];
   const paddles = [];
+  const segs = [];
+  const spinZones = [];
 
   const rect = (x, y, w, h, o = {}) => statics.push(Bodies.rectangle(x, y, w, h, { ...S, label: 'wall', friction: 0.02, ...o }));
-  const peg = (x, y) => statics.push(Bodies.circle(x, y, 4, { ...S, label: 'peg', restitution: 0.5, friction: 0.01 }));
+  const ramp = (x1, y1, x2, y2) => {
+    segs.push([x1, y1, x2, y2]);
+    statics.push(Bodies.rectangle((x1 + x2) / 2, (y1 + y2) / 2, Math.hypot(x2 - x1, y2 - y1), 12, {
+      ...S, label: 'ramp', angle: Math.atan2(y2 - y1, x2 - x1), friction: 0.005, restitution: 0.2,
+    }));
+  };
+  // Pegs keep a full marble's width clear of ramps and spinners so nothing can wedge.
+  const peg = (x, y) => {
+    if (segs.some(sg => distToSeg(x, y, sg) < 30)) return;
+    if (spinZones.some(([sx, sy, r]) => Math.hypot(x - sx, y - sy) < r + 24)) return;
+    statics.push(Bodies.circle(x, y, 4, { ...S, label: 'peg', restitution: 0.5, friction: 0.01 }));
+  };
+  const pegField = (y0, y1, dy, dx, x0Even, x0Odd) => {
+    for (let row = 0, y = y0; y <= y1; row++, y += dy) {
+      for (let x = row % 2 ? x0Odd : x0Even; x <= 370; x += dx) peg(x, y);
+    }
+  };
   const bumper = (x, y, r = 20) => statics.push(Bodies.circle(x, y, r, { ...S, label: 'bumper', restitution: 1.05, friction: 0 }));
-  const ramp = (x1, y1, x2, y2) => statics.push(Bodies.rectangle((x1 + x2) / 2, (y1 + y2) / 2, Math.hypot(x2 - x1, y2 - y1), 12, {
-    ...S, label: 'ramp', angle: Math.atan2(y2 - y1, x2 - x1), friction: 0.005, restitution: 0.2,
-  }));
-  const paddle = (cx, cy, len, w) => paddles.push({
-    cx, cy, w,
-    body: Bodies.rectangle(cx, cy, len, 10, {
-      label: 'paddle', density: 0.05, frictionAir: 0, friction: 0.05, restitution: 0.5,
-      collisionFilter: { category: PADDLE, mask: MARBLE },
-    }),
-  });
+  // Little ramps jutting off the walls so nobody gets a free ride down the edge.
+  const deflectors = y => {
+    ramp(-6, y, 46, y + 30);
+    ramp(406, y, 354, y + 30);
+  };
+  // V-shaped hopper with a single-file exit: bunches the pack back up.
+  const hopper = (y, exit = 34) => {
+    ramp(-10, y, 200 - exit / 2, y + 170);
+    ramp(410, y, 200 + exit / 2, y + 170);
+    paddle(200, y + 145, 60, 0.05);
+  };
+  const paddle = (cx, cy, len, w) => {
+    spinZones.push([cx, cy, len / 2]);
+    paddles.push({ cx, cy, w, body: Bodies.rectangle(cx, cy, len, 10, P) });
+  };
+  const windmill = (cx, cy, r, w) => {
+    spinZones.push([cx, cy, r]);
+    const body = Body.create({ ...P, parts: [Bodies.rectangle(cx, cy, r * 2, 10, P), Bodies.rectangle(cx, cy, 10, r * 2, P)] });
+    paddles.push({ cx, cy, w, body });
+  };
+  // Zigzag ramp with a hole in the middle: some marbles drop through, some ride it out.
+  const holeyRamp = (y, fromLeft) => {
+    const x1 = fromLeft ? -10 : 410;
+    const x2 = fromLeft ? 330 : 70;
+    const yAt = x => y - 55 + ((x - x1) / (x2 - x1)) * 110;
+    const h1 = fromLeft ? 150 : 250;
+    const h2 = fromLeft ? 180 : 220;
+    ramp(x1, yAt(x1), h1, yAt(h1));
+    ramp(h2, yAt(h2), x2, yAt(x2));
+  };
 
   // Walls, ceiling, collection tray floor
   rect(-15, FLOOR_Y / 2, 30, FLOOR_Y + 200);
@@ -45,38 +91,43 @@ function buildCourse() {
   rect(W / 2, -75, W + 60, 30);
   rect(W / 2, FLOOR_Y + 15, W + 60, 30, { label: 'floor', friction: 0.3 });
 
-  // A: peg field
-  for (let row = 0, y = 140; y <= 620; row++, y += 40) {
-    const x0 = row % 2 ? 51.25 : 30;
-    for (let x = x0; x <= 370; x += 42.5) peg(x, y);
-  }
+  // A: peg field with wall deflectors
+  for (const y of [180, 340, 500]) deflectors(y);
+  pegField(140, 560, 40, 42.5, 30, 51.25);
 
-  // B: zigzag ramps (steep enough that marbles keep moving)
-  for (let i = 0; i < 4; i++) {
-    const y = 700 + i * 150;
-    if (i % 2 === 0) ramp(-10, y - 55, 330, y + 55);
-    else ramp(410, y - 55, 70, y + 55);
-  }
+  // B: first hopper
+  hopper(590);
 
-  // C: bumpers around a big spinner
-  for (const [x, y] of [[70, 1330], [200, 1320], [330, 1330], [130, 1420], [270, 1420], [60, 1570], [340, 1570]]) bumper(x, y);
-  bumper(200, 1655, 22);
-  paddle(200, 1525, 170, 0.04);
+  // C: windmills. A little roof in the middle feeds marbles into the blades.
+  ramp(170, 815, 200, 790);
+  ramp(200, 790, 230, 815);
+  windmill(95, 895, 85, 0.03);
+  windmill(305, 895, 85, -0.03);
+  windmill(200, 1060, 100, 0.035);
+  bumper(45, 1060, 16);
+  bumper(355, 1060, 16);
+  deflectors(1120);
 
-  // D: dense pegs with twin spinners
-  const spinners = [[110, 1900, 0.045], [290, 1900, -0.045]];
-  for (let row = 0, y = 1720; y <= 2080; row++, y += 36) {
-    const x0 = row % 2 ? 49 : 30;
-    for (let x = x0; x <= 370; x += 38) {
-      if (spinners.some(([sx, sy]) => Math.hypot(x - sx, y - sy) < 75)) continue;
-      peg(x, y);
-    }
-  }
-  for (const [x, y, w] of spinners) paddle(x, y, 120, w);
+  // D: zigzag ramps with holes
+  for (let i = 0; i < 4; i++) holeyRamp(1250 + i * 150, i % 2 === 0);
 
-  // E: funnel to the finish
-  ramp(-10, 2140, 165, 2300);
-  ramp(410, 2140, 235, 2300);
+  // E: pinball bumpers around a big spinner
+  for (const [x, y] of [[70, 1830], [200, 1820], [330, 1830], [130, 1920], [270, 1920], [60, 2070], [340, 2070]]) bumper(x, y);
+  bumper(200, 2155, 22);
+  paddle(200, 2025, 170, 0.04);
+
+  // F: second hopper
+  hopper(2200);
+
+  // G: dense pegs with twin spinners
+  paddle(110, 2610, 120, 0.045);
+  paddle(290, 2610, 120, -0.045);
+  deflectors(2470);
+  deflectors(2680);
+  pegField(2430, 2790, 36, 38, 30, 49);
+
+  // H: final hopper, then a straight drop to the finish
+  hopper(2850);
 
   return { statics, paddles };
 }
@@ -172,8 +223,23 @@ export function createSim(players, { headless = false } = {}) {
         m.bestAt = sim.t;
       } else if (sim.t - m.bestAt > STUCK_STEPS) {
         const dir = Math.random() < 0.5 ? -1 : 1;
-        Body.setVelocity(m.body, { x: dir * (2 + Math.random() * 2), y: -2 });
+        Body.setVelocity(m.body, { x: dir * (1.5 + Math.random() * 1.5), y: -1.5 });
         m.bestAt = sim.t;
+      }
+    }
+
+    // Keep the pack together: marbles that break far ahead of the median get
+    // extra air drag, and stragglers get a gentle nudge down the course.
+    // Depends only on position, never on who the marble is.
+    const rolling = marbles.filter(m => !m.finished);
+    if (rolling.length > 1) {
+      const ys = rolling.map(m => m.body.position.y).sort((a, b) => a - b);
+      const median = ys[ys.length >> 1];
+      for (const m of rolling) {
+        const ahead = m.body.position.y - median;
+        m.body.frictionAir = 0.0008 + clamp((ahead - 120) / 600, 0, 1) * 0.05;
+        const behind = clamp((-ahead - 150) / 600, 0, 1);
+        if (behind > 0) Body.applyForce(m.body, m.body.position, { x: 0, y: m.body.mass * GRAVITY * 0.5 * behind });
       }
     }
 
@@ -303,8 +369,10 @@ function renderer(canvas, sim) {
     ctx.shadowBlur = 10;
     for (const { body } of sim.paddles) {
       if (!visible(body)) continue;
-      poly(ctx, body);
-      ctx.fill();
+      for (const part of body.parts.length > 1 ? body.parts.slice(1) : [body]) {
+        poly(ctx, part);
+        ctx.fill();
+      }
     }
     ctx.shadowBlur = 0;
 

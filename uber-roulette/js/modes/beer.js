@@ -5,8 +5,8 @@
 // the person left over at the end is uniformly random. Each round's passes are
 // built backward to end on that round's winner.
 
-import { randInt, shuffle, rand } from '../fair.js?v=2';
-import { TAU, fit, loop, banner, tag, short, clamp, ease, initial, textOn } from '../stage.js?v=2';
+import { randInt, shuffle, rand } from '../fair.js?v=3';
+import { TAU, fit, loop, banner, tag, short, clamp, ease, initial, textOn, shade } from '../stage.js?v=3';
 
 const INTRO = 1000;
 const CHEERS = 1700;
@@ -51,6 +51,8 @@ export default {
     let finalAt = null;
     let elapsed = 0;
     const bubbles = [];
+    const notes = [];
+    let nextNote = 0;
 
     return loop(signal, dt => {
       elapsed += dt;
@@ -65,11 +67,12 @@ export default {
         const a = -Math.PI / 2 + (i / n) * TAU;
         return { x: cx + Math.cos(a) * Rc, y: cy + Math.sin(a) * Rc };
       };
-      const barY = h - 70 * dpr;
-      const barSeat = i => {
-        const gap = Math.min(64 * dpr, (w - 40 * dpr) / Math.max(safe.length, 1));
-        return { x: cx + (i - (safe.length - 1) / 2) * gap, y: barY };
-      };
+      // Dance floor along the bottom; people with beers stand (feet) on floorY
+      const floorY = h - 40 * dpr;
+      const gap = Math.min(64 * dpr, (w - 40 * dpr) / Math.max(safe.length, 1));
+      const room = floorY - (cy + Rc + r + 40 * dpr); // space between the circle and the floor
+      const ds = clamp(Math.min(room / 4.2, gap * 0.34), 9 * dpr, 26 * dpr);
+      const barSeat = i => ({ x: cx + (i - (safe.length - 1) / 2) * gap, y: floorY });
 
       // Everyone glides toward their seat (the circle closes up as people leave)
       const k = ease(dt, 0.008);
@@ -151,12 +154,30 @@ export default {
       ctx.fillStyle = bg;
       ctx.fillRect(0, 0, w, h);
 
-      // The bar, where people with beers hang out
-      ctx.fillStyle = '#5b3a1e';
-      ctx.fillRect(0, barY + 30 * dpr, w, h - barY);
+      // Dance floor: tiles that cycle color on the beat
+      const beatN = Math.floor(elapsed / 420);
+      const tile = 26 * dpr;
+      const disco = ['#ff4d8d', '#3de0ff', '#ffd23f', '#b388ff', '#7ae582'];
+      for (let x = 0, i = 0; x < w; x += tile, i++) {
+        ctx.fillStyle = safe.length ? disco[(i + beatN) % disco.length] : '#3a2a52';
+        ctx.globalAlpha = safe.length ? ((i + beatN) % 2 ? 0.28 : 0.5) : 0.4;
+        ctx.fillRect(x, floorY, tile - 2 * dpr, h - floorY);
+      }
+      ctx.globalAlpha = 1;
       ctx.fillStyle = '#7a5230';
-      ctx.fillRect(0, barY + 26 * dpr, w, 6 * dpr);
-      if (safe.length) tag(ctx, 'HAS A BEER 🍻', cx, barY - 34 * dpr, 11 * dpr, '#ffd23f');
+      ctx.fillRect(0, floorY - 2 * dpr, w, 4 * dpr);
+      if (safe.length) {
+        // Spotlights sweeping over the dancers
+        for (let i = 0; i < 3; i++) {
+          const sx = w * (0.2 + 0.3 * i) + Math.sin(elapsed * 0.0012 + i * 2) * w * 0.12;
+          const g = ctx.createRadialGradient(sx, floorY - ds * 1.5, 0, sx, floorY - ds * 1.5, ds * 5);
+          g.addColorStop(0, disco[(i + beatN) % disco.length] + '55');
+          g.addColorStop(1, 'transparent');
+          ctx.fillStyle = g;
+          ctx.fillRect(sx - ds * 5, floorY - ds * 6.5, ds * 10, ds * 10);
+        }
+        tag(ctx, 'HAS A BEER 🍻', cx, floorY - ds * 3.6 - 14 * dpr, 11 * dpr, '#ffd23f');
+      }
 
       if (n > 1) {
         ctx.strokeStyle = 'rgba(255,255,255,.08)';
@@ -205,15 +226,78 @@ export default {
           ctx.fillText('🚕', x + rad * 0.95, y + rad * 0.75);
         }
       });
-      const smallR = clamp(r * 0.62, 14 * dpr, 24 * dpr);
-      safe.forEach(p => {
-        const { x, y } = pos.get(p);
-        avatar(p, x, y, smallR, { dim: true });
-        ctx.font = `${smallR * 1.1}px sans-serif`;
+      // People with beers dance: hop, sway, wave one arm, pump the beer with the other
+      const dancer = (p, x, y, u, ph) => {
+        const beat = elapsed * 0.0105 + ph;
+        const hop = Math.abs(Math.sin(beat)) * u * 0.45;
+        const kick = Math.sin(beat) * u * 0.35;
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.lineCap = 'round';
+        ctx.lineWidth = u * 0.28;
+        ctx.strokeStyle = shade(p.color, -0.35);
+        const hipY = -u - hop;
+        ctx.beginPath();
+        ctx.moveTo(-u * 0.2, hipY);
+        ctx.lineTo(-u * 0.35 - kick * 0.5, -hop * 0.3);
+        ctx.moveTo(u * 0.2, hipY);
+        ctx.lineTo(u * 0.35 + kick * 0.5, -hop * 0.3);
+        ctx.stroke();
+        ctx.translate(0, hipY);
+        ctx.rotate(Math.sin(beat / 2) * 0.22);
+        const arm = (sx, a) => {
+          const hx = sx + Math.cos(a) * u * 0.85;
+          const hy = -u * 0.8 + Math.sin(a) * u * 0.85;
+          ctx.beginPath();
+          ctx.moveTo(sx, -u * 0.8);
+          ctx.lineTo(hx, hy);
+          ctx.stroke();
+          return { hx, hy };
+        };
+        arm(-u * 0.32, -2.3 + Math.sin(beat) * 0.6);
+        const { hx, hy } = arm(u * 0.32, -0.9 + Math.sin(beat * 2) * 0.45);
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        if (ctx.roundRect) ctx.roundRect(-u * 0.38, -u * 0.95, u * 0.76, u, u * 0.3);
+        else ctx.rect(-u * 0.38, -u * 0.95, u * 0.76, u);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(0, -u * 1.45, u * 0.52, 0, TAU);
+        ctx.fill();
+        ctx.fillStyle = textOn(p.color);
+        ctx.font = `800 ${u * 0.6}px Inter, sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText('🍺', x + smallR * 0.85, y + smallR * 0.55);
+        ctx.fillText(initial(p.name), 0, -u * 1.43);
+        ctx.font = `${u * 0.95}px sans-serif`;
+        ctx.fillText('🍺', hx + u * 0.1, hy - u * 0.15);
+        ctx.restore();
+      };
+      safe.forEach((p, i) => {
+        const { x, y } = pos.get(p);
+        dancer(p, x, y, ds, i * 1.7);
+        tag(ctx, short(p.name), x, floorY + 16 * dpr, 10 * dpr);
       });
+
+      // Music notes drifting up off the dance floor
+      if (safe.length && elapsed > nextNote) {
+        nextNote = elapsed + 380;
+        const from = pos.get(safe[randInt(safe.length)]);
+        notes.push({ x: from.x, y: from.y - ds * 2.5, vx: (Math.random() - 0.5) * 0.6 * dpr, life: 1, ch: Math.random() < 0.5 ? '♪' : '♫', c: disco[randInt(disco.length)] });
+      }
+      for (let i = notes.length - 1; i >= 0; i--) {
+        const m = notes[i];
+        m.x += m.vx * dt * 0.06;
+        m.y -= 0.9 * dpr * dt * 0.06;
+        m.life -= dt * 0.0009;
+        if (m.life <= 0) { notes.splice(i, 1); continue; }
+        ctx.globalAlpha = m.life;
+        ctx.fillStyle = m.c;
+        ctx.font = `800 ${15 * dpr}px sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.fillText(m.ch, m.x, m.y);
+      }
+      ctx.globalAlpha = 1;
 
       // The beer
       if (beer && finalAt === null) {
