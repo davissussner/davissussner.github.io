@@ -6,8 +6,8 @@
 // length is random each game, keeps getting faster, and goes into a frenzy a few
 // seconds after grace ends, so a chase lasts ~10–20s (about 15 on average).
 
-import { shuffle, rand } from '../fair.js?v=4';
-import { fit, runSim, simulateHeadless, throttle, tag, short, clamp, ease, banner, initial, textOn, setHud, esc } from '../stage.js?v=4';
+import { shuffle, rand } from '../fair.js?v=5';
+import { fit, runSim, simulateHeadless, throttle, tag, short, clamp, ease, banner, initial, textOn, setHud, esc } from '../stage.js?v=5';
 
 const W = 400;
 const H = 600;
@@ -291,6 +291,10 @@ export function createSim(players, { headless = false } = {}) {
         r.alive = false;
         sim.victim = r;
         sim.loser = r.player;
+        const others = runners.filter(o => o.alive);
+        sim.shot = others.length
+          ? others.reduce((a, b) => (len(b.x - bear.x, b.y - bear.y) < len(a.x - bear.x, a.y - bear.y) ? b : a)).player
+          : null;
         sim.done = true;
         sim.events.push({ type: 'chomp' });
         return;

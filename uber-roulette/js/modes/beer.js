@@ -5,8 +5,8 @@
 // the person left over at the end is uniformly random. Each round's passes are
 // built backward to end on that round's winner.
 
-import { randInt, shuffle, rand } from '../fair.js?v=4';
-import { TAU, fit, loop, banner, tag, short, clamp, ease, initial, textOn, shade } from '../stage.js?v=4';
+import { randInt, shuffle, rand } from '../fair.js?v=5';
+import { TAU, fit, loop, banner, tag, short, clamp, ease, initial, textOn, shade } from '../stage.js?v=5';
 
 const INTRO = 1000;
 const CHEERS = 1700;
@@ -332,7 +332,7 @@ export default {
       if (finalAt !== null) {
         const loser = remaining[0];
         banner(ctx, w, h, dpr, 'NO BEER LEFT', { color: '#ff4d6d', sub: `${loser.name} is the last one standing`, y: 0.1 });
-        if (elapsed - finalAt > FINAL_HOLD) return loser;
+        if (elapsed - finalAt > FINAL_HOLD) return { loser, shot: safe[safe.length - 1] ?? null };
       } else if (cheered) {
         banner(ctx, w, h, dpr, 'CHEERS! 🍻', { color: '#ffd23f', sub: `${plan.winner.name} gets a beer`, y: 0.1 });
       } else if (rt < INTRO) {

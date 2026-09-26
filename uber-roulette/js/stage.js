@@ -34,7 +34,8 @@ export function loop(signal, frame) {
 }
 
 // Drive a physics sim at a fixed 60Hz step, render every frame, and resolve
-// with the sim's loser once it's done and the "last place" moment has played.
+// with { loser, shot } once it's done and the "last place" moment has played.
+// `shot` is second to last (takes a shot), or null if the mode has no runner-up.
 // `speed` only changes playback rate (slow motion), never the physics itself.
 export function runSim(signal, sim, draw, onEvent, holdMs = 1900, speed = () => 1) {
   let acc = 0;
@@ -52,7 +53,7 @@ export function runSim(signal, sim, draw, onEvent, holdMs = 1900, speed = () => 
     draw(dt, now);
     if (sim.done) {
       doneAt ??= now;
-      if (now - doneAt >= holdMs) return sim.loser;
+      if (now - doneAt >= holdMs) return { loser: sim.loser, shot: sim.shot ?? null };
     }
   });
 }

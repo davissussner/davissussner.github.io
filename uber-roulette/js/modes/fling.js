@@ -2,8 +2,8 @@
 // Shortest distance orders. Launch order and launch power/angle are drawn
 // independently of who's who, so every player has exactly a 1/N chance.
 
-import { shuffle, rand } from '../fair.js?v=4';
-import { STEP, fit, runSim, simulateHeadless, throttle, poly, tag, short, clamp, ease, banner, shade, initial, textOn, setHud, esc } from '../stage.js?v=4';
+import { shuffle, rand } from '../fair.js?v=5';
+import { STEP, fit, runSim, simulateHeadless, throttle, poly, tag, short, clamp, ease, banner, shade, initial, textOn, setHud, esc } from '../stage.js?v=5';
 
 const { Engine, Bodies, Body, Composite, Constraint, Events } = Matter;
 
@@ -247,8 +247,10 @@ export function createSim(players, { headless = false } = {}) {
       }
     } else if (sim.phase === 'final' && sim.phaseT >= (headless ? 30 : FINAL)) {
       // Raw x (not clamped at 0) so two players bouncing backwards can't tie.
-      sim.loserSlot = slots.reduce((a, b) => (b.x < a.x ? b : a));
+      const ranked = [...slots].sort((a, b) => b.x - a.x);
+      sim.loserSlot = ranked[ranked.length - 1];
       sim.loser = sim.loserSlot.player;
+      sim.shot = ranked.length > 1 ? ranked[ranked.length - 2].player : null;
       sim.done = true;
       sim.events.push({ type: 'last' });
     }

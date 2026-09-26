@@ -1,8 +1,8 @@
 // Wheel Spin: equal slices, tap to spin. The loser is drawn uniformly first,
 // then the wheel is animated to land on a random spot inside their slice.
 
-import { randInt, shuffle, rand } from '../fair.js?v=4';
-import { TAU, fit, loop, banner, short, textOn, shade } from '../stage.js?v=4';
+import { randInt, shuffle, rand } from '../fair.js?v=5';
+import { TAU, fit, loop, banner, short, textOn, shade } from '../stage.js?v=5';
 
 const POINTER = -Math.PI / 2;
 const mod = (a, m) => ((a % m) + m) % m;
@@ -29,10 +29,11 @@ export default {
     let flap = 0;
     let doneAt = null;
     let elapsed = 0;
+    let f = 0.5; // where in the loser's slice the pointer lands
 
     const start = () => {
       if (spin) return;
-      const f = rand(0.12, 0.88);
+      f = rand(0.12, 0.88);
       const landing = POINTER - (loserIdx + f) * slice;
       const total = mod(landing - rot, TAU) + (5 + randInt(3)) * TAU;
       spin = { from: rot, total, dur: rand(5200, 6800), t: 0 };
@@ -152,7 +153,9 @@ export default {
         }
         const loser = order[loserIdx];
         banner(ctx, w, h, dpr, short(loser.name), { color: loser.color, y: 0.93 });
-        if (elapsed - doneAt > 1600) return loser;
+        // "So close": the neighbor slice on the side the pointer nearly stopped
+        const shot = order[(loserIdx + (f < 0.5 ? n - 1 : 1)) % n];
+        if (elapsed - doneAt > 1600) return { loser, shot: n > 1 ? shot : null };
       }
     });
   },

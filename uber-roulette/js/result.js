@@ -6,10 +6,21 @@ const card = overlay.querySelector('.result-card');
 const cv = document.getElementById('confetti');
 const again = document.getElementById('again');
 const change = document.getElementById('change');
+const shotEl = document.getElementById('result-shot');
+const shotName = document.getElementById('shot-name');
 const COLORS = ['#ffd23f', '#ff4d8d', '#3de0ff', '#7ae582', '#b388ff', '#ff8c42'];
 let raf = 0;
 
-export function showResult(player, { onAgain, onChange }) {
+export function showResult(player, { shot = null, onAgain, onChange }) {
+  // Second to last: pops in under the result a beat later
+  shotEl.classList.toggle('hidden', !shot);
+  if (shot) {
+    shotName.textContent = shot.name;
+    overlay.style.setProperty('--s', shot.color);
+    shotEl.style.animation = 'none';
+    void shotEl.offsetWidth;
+    shotEl.style.animation = '';
+  }
   nameEl.textContent = player.name;
   overlay.style.setProperty('--c', player.color);
   overlay.classList.remove('hidden');

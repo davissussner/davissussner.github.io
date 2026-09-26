@@ -5,14 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#0e0b1f">
 <title>Uber Roulette</title>
-<meta name="description" content="Settle who orders the Uber to the bar: marble race, human catapult, bear chase, pass the beer or wheel spin. Everyone always has equal odds.">
+<meta name="description" content="Settle who orders the Uber to the bar: marble race, horse race, human catapult, bear chase, pass the beer or wheel spin. Everyone always has equal odds.">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚕</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bungee&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=4">
+<link rel="stylesheet" href="style.css?v=5">
 <script src="https://cdn.jsdelivr.net/npm/matter-js@0.19.0/build/matter.min.js"></script>
-<script type="module" src="js/main.js?v=4"></script>
+<script type="module" src="js/main.js?v=5"></script>
 </head>
 <body>
 
@@ -53,7 +53,7 @@
     <div id="sim-out"></div>
   </section>
 
-  <p class="fine">Every player has exactly equal odds in every game. Picks use your browser's crypto random generator, and physics games shuffle who starts where, so no spot on the course is lucky.</p>
+  <p class="fine">Last place orders the Uber; second to last takes a shot (3+ players). Every player has exactly equal odds in every game. Picks use your browser's crypto random generator, and physics games shuffle who starts where, so no spot on the course is lucky.</p>
 </main>
 
 <section id="game" class="screen hidden">
@@ -75,6 +75,10 @@
     <div id="result-name" class="result-name"></div>
     <div class="result-line">is ordering the Uber</div>
     <div class="result-car">🚕</div>
+    <div id="result-shot" class="result-shot hidden">
+      <span class="shot-glass">🥃</span>
+      <span><b id="shot-name"></b> has to take a shot!</span>
+    </div>
     <div class="result-actions">
       <button type="button" id="again" class="btn">Run it back</button>
       <button type="button" id="change" class="btn ghost">Change mode</button>

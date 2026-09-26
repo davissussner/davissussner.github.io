@@ -1,14 +1,15 @@
-import { pick } from './fair.js?v=4';
-import { sfx, unlock, isMuted, setMuted } from './audio.js?v=4';
-import { showResult, hideResult } from './result.js?v=4';
-import { esc } from './stage.js?v=4';
-import marble from './modes/marble.js?v=4';
-import fling from './modes/fling.js?v=4';
-import wheel from './modes/wheel.js?v=4';
-import beer from './modes/beer.js?v=4';
-import bear from './modes/bear.js?v=4';
+import { pick } from './fair.js?v=5';
+import { sfx, unlock, isMuted, setMuted } from './audio.js?v=5';
+import { showResult, hideResult } from './result.js?v=5';
+import { esc } from './stage.js?v=5';
+import marble from './modes/marble.js?v=5';
+import fling from './modes/fling.js?v=5';
+import wheel from './modes/wheel.js?v=5';
+import beer from './modes/beer.js?v=5';
+import bear from './modes/bear.js?v=5';
+import horse from './modes/horse.js?v=5';
 
-const MODES = [marble, fling, bear, beer, wheel];
+const MODES = [marble, horse, fling, bear, beer, wheel];
 const RANDOM = { id: 'random', title: 'Surprise me', emoji: '🎲', blurb: 'Pick one of the games at random.' };
 const KEY = 'uber-roulette:roster';
 const MAX_PLAYERS = 16;
@@ -136,10 +137,14 @@ async function play(mode, random = false) {
   hud._html = '';
   await new Promise(requestAnimationFrame); // let the canvas get its size
 
-  const loser = await mode.play({ canvas, hud, players, signal: ctrl.signal, sfx });
-  if (!loser || ctrl.signal.aborted) return;
+  const result = await mode.play({ canvas, hud, players, signal: ctrl.signal, sfx });
+  if (!result || ctrl.signal.aborted) return;
+  // With only two players, "second to last" is the winner, so no shot.
+  const shot = players.length >= 3 ? result.shot : null;
   sfx.fanfare();
-  showResult(loser, {
+  if (shot) setTimeout(() => { if (!ctrl.signal.aborted) sfx.clink(); }, 1100);
+  showResult(result.loser, {
+    shot,
     onAgain: () => play(random ? pick(MODES) : mode, random),
     onChange: showHome,
   });

@@ -2,8 +2,8 @@
 // Fairness: names are shuffled into start slots, so any bias in the course
 // lands on a random person. Each player loses with probability exactly 1/N.
 
-import { shuffle } from '../fair.js?v=4';
-import { STEP, fit, runSim, simulateHeadless, throttle, poly, tag, short, clamp, ease, banner, shade, setHud, esc } from '../stage.js?v=4';
+import { shuffle } from '../fair.js?v=5';
+import { STEP, fit, runSim, simulateHeadless, throttle, poly, tag, short, clamp, ease, banner, shade, setHud, esc } from '../stage.js?v=5';
 
 const { Engine, Bodies, Body, Composite, Events, Query } = Matter;
 
@@ -266,11 +266,12 @@ export function createSim(players, { headless = false } = {}) {
 
     const left = marbles.filter(m => !m.finished);
     if (left.length <= 1 || sim.t - raceStart > TIMEOUT) {
-      // Last to finish loses; on timeout, least progress (highest up the course) loses.
-      sim.loserMarble = left.length
-        ? left.reduce((a, b) => (b.body.position.y < a.body.position.y ? b : a))
-        : sim.finished[sim.finished.length - 1];
+      // Rank finishers in order, then anyone still rolling by progress (only on
+      // timeout). Last orders the Uber; second to last takes a shot.
+      const ranking = [...sim.finished, ...left.sort((a, b) => b.body.position.y - a.body.position.y)];
+      sim.loserMarble = ranking[ranking.length - 1];
       sim.loser = sim.loserMarble.player;
+      sim.shot = ranking.length > 1 ? ranking[ranking.length - 2].player : null;
       sim.done = true;
       sim.events.push({ type: 'last' });
     }
