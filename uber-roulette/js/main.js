@@ -1,13 +1,13 @@
-import { pick } from './fair.js?v=5';
-import { sfx, unlock, isMuted, setMuted } from './audio.js?v=5';
-import { showResult, hideResult } from './result.js?v=5';
-import { esc } from './stage.js?v=5';
-import marble from './modes/marble.js?v=5';
-import fling from './modes/fling.js?v=5';
-import wheel from './modes/wheel.js?v=5';
-import beer from './modes/beer.js?v=5';
-import bear from './modes/bear.js?v=5';
-import horse from './modes/horse.js?v=5';
+import { pick } from './fair.js?v=6';
+import { sfx, unlock, isMuted, setMuted } from './audio.js?v=6';
+import { showResult, hideResult } from './result.js?v=6';
+import { esc } from './stage.js?v=6';
+import marble from './modes/marble.js?v=6';
+import fling from './modes/fling.js?v=6';
+import wheel from './modes/wheel.js?v=6';
+import beer from './modes/beer.js?v=6';
+import bear from './modes/bear.js?v=6';
+import horse from './modes/horse.js?v=6';
 
 const MODES = [marble, horse, fling, bear, beer, wheel];
 const RANDOM = { id: 'random', title: 'Surprise me', emoji: '🎲', blurb: 'Pick one of the games at random.' };

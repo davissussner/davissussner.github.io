@@ -4,8 +4,8 @@
 // random rules (form swings, surges, stumbles, and a pack pull that slows
 // runaway leaders and helps stragglers), none of which know who is riding.
 
-import { shuffle } from '../fair.js?v=5';
-import { fit, runSim, simulateHeadless, throttle, tag, short, clamp, ease, banner, setHud, esc } from '../stage.js?v=5';
+import { shuffle } from '../fair.js?v=6';
+import { fit, runSim, simulateHeadless, throttle, tag, short, clamp, ease, banner, setHud, esc } from '../stage.js?v=6';
 
 const FINISH = 2600;
 const LANE = 46;

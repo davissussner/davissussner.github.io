@@ -2,8 +2,8 @@
 // Fairness: names are shuffled into start slots, so any bias in the course
 // lands on a random person. Each player loses with probability exactly 1/N.
 
-import { shuffle } from '../fair.js?v=5';
-import { STEP, fit, runSim, simulateHeadless, throttle, poly, tag, short, clamp, ease, banner, shade, setHud, esc } from '../stage.js?v=5';
+import { shuffle } from '../fair.js?v=6';
+import { STEP, fit, runSim, simulateHeadless, throttle, poly, tag, short, clamp, ease, banner, shade, setHud, esc } from '../stage.js?v=6';
 
 const { Engine, Bodies, Body, Composite, Events, Query } = Matter;
 

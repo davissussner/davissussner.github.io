@@ -1,8 +1,8 @@
 // Wheel Spin: equal slices, tap to spin. The loser is drawn uniformly first,
 // then the wheel is animated to land on a random spot inside their slice.
 
-import { randInt, shuffle, rand } from '../fair.js?v=5';
-import { TAU, fit, loop, banner, short, textOn, shade } from '../stage.js?v=5';
+import { randInt, shuffle, rand } from '../fair.js?v=6';
+import { TAU, fit, loop, banner, short, textOn, shade } from '../stage.js?v=6';
 
 const POINTER = -Math.PI / 2;
 const mod = (a, m) => ((a % m) + m) % m;

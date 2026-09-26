@@ -6,8 +6,8 @@
 // length is random each game, keeps getting faster, and goes into a frenzy a few
 // seconds after grace ends, so a chase lasts ~10–20s (about 15 on average).
 
-import { shuffle, rand } from '../fair.js?v=5';
-import { fit, runSim, simulateHeadless, throttle, tag, short, clamp, ease, banner, initial, textOn, setHud, esc } from '../stage.js?v=5';
+import { shuffle, rand } from '../fair.js?v=6';
+import { fit, runSim, simulateHeadless, throttle, tag, short, clamp, ease, banner, initial, textOn, setHud, esc } from '../stage.js?v=6';
 
 const W = 400;
 const H = 600;
@@ -123,7 +123,10 @@ export function createSim(players, { headless = false } = {}) {
       wander: Math.random() * Math.PI * 2, alive: true, panic: 0, face: 1,
     };
   });
-  const bear = { x: BEAR_START.x, y: BEAR_START.y, vx: 0, vy: 0, target: null, pause: 0, face: 1, field: null, fieldAt: -99 };
+  const bear = {
+    x: BEAR_START.x, y: BEAR_START.y, vx: 0, vy: 0, target: null, pause: 0, face: 1, field: null, fieldAt: -99,
+    chaseLeft: 0, hiddenFor: 0,
+  };
   const grace = Math.round(rand(GRACE_MIN, GRACE_MAX));
   const sim = { t: 0, grace, frenzy: grace + FRENZY_AFTER, runners, bear, done: false, loser: null, victim: null, events: [], headless };
   sim.events.push({ type: 'roar' });
@@ -139,12 +142,41 @@ export function createSim(players, { headless = false } = {}) {
     if (sim.t === sim.grace) sim.events.push({ type: 'hungry' });
     if (sim.t === sim.frenzy) sim.events.push({ type: 'frenzy' });
 
-    // --- Bear: chase the nearest runner (sticky target), steer around obstacles
+    // --- Bear: a restless hunter. It picks prey at random (closer runners are
+    // likelier), gets bored after a few seconds, loses runners who stay hidden
+    // behind cover, switches prey after a swipe, and picks fresh prey the moment
+    // it gets hungry, so whoever it locks onto first isn't doomed.
     const live = runners.filter(r => r.alive);
-    if (sim.t % 20 === 1 || !bear.target) {
-      const dist = r => len(r.x - bear.x, r.y - bear.y);
-      const nearest = live.reduce((a, b) => (dist(b) < dist(a) ? b : a));
-      if (!bear.target || dist(nearest) < dist(bear.target) * 0.75) bear.target = nearest;
+    const dist = r => len(r.x - bear.x, r.y - bear.y);
+    const pickPrey = avoid => {
+      const pool = live.length > 1 ? live.filter(r => r !== avoid) : live;
+      const weights = pool.map(r => 1 / (dist(r) + 60));
+      let roll = Math.random() * weights.reduce((a, b) => a + b, 0);
+      for (let i = 0; i < pool.length; i++) {
+        roll -= weights[i];
+        if (roll <= 0) return pool[i];
+      }
+      return pool[pool.length - 1];
+    };
+    const retarget = avoid => {
+      bear.target = pickPrey(avoid);
+      bear.chaseLeft = 150 + Math.floor(Math.random() * 120);
+      bear.hiddenFor = 0;
+    };
+    const frenzied = sim.t >= sim.frenzy; // in a frenzy it stops getting distracted
+    if (!bear.target || !bear.target.alive || sim.t === sim.grace) retarget(bear.target);
+    else if (--bear.chaseLeft <= 0 && !frenzied) retarget(bear.target);
+    else {
+      bear.hiddenFor = segClear(bear.x, bear.y, bear.target.x, bear.target.y, PR) ? 0 : bear.hiddenFor + 1;
+      if (bear.hiddenFor > 80 && !frenzied) retarget(bear.target);
+      else {
+        // Opportunist: someone blundering right into it is fair game
+        const close = live.find(r => r !== bear.target && dist(r) < 45 && dist(r) < dist(bear.target) * 0.5);
+        if (close) {
+          bear.target = close;
+          bear.chaseLeft = Math.max(bear.chaseLeft, 60);
+        }
+      }
     }
     if (bear.pause > 0) {
       bear.pause--;
@@ -284,7 +316,7 @@ export function createSim(players, { headless = false } = {}) {
           r.vx = (dx / d) * 6;
           r.vy = (dy / d) * 6;
           bear.pause = 28;
-          bear.target = null;
+          retarget(r);
           sim.events.push({ type: 'swipe' });
         }
       } else {
