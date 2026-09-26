@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0e0b1f">
+<title>Uber Roulette</title>
+<meta name="description" content="Settle who orders the Uber to the bar: marble race, human catapult, wheel spin or hot potato. Everyone always has equal odds.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚕</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bungee&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/matter-js@0.19.0/build/matter.min.js"></script>
+<script type="module" src="js/main.js"></script>
+</head>
+<body>
+
+<main id="home" class="screen">
+  <header class="top">
+    <h1><span class="accent">Uber</span> Roulette</h1>
+    <button type="button" class="icon-btn mute-btn" aria-label="Toggle sound">🔊</button>
+  </header>
+
+  <section class="card">
+    <div class="card-head">
+      <h2>Who's going out?</h2>
+      <span id="going-count" class="pill"></span>
+    </div>
+    <p class="hint">Tap a name to toggle them in or out for tonight.</p>
+    <form id="add-form" autocomplete="off">
+      <input id="add-name" maxlength="16" placeholder="Add a roommate or guest" aria-label="Name" enterkeyhint="done">
+      <button type="submit" class="btn">Add</button>
+    </form>
+    <p id="add-error" class="error hidden"></p>
+    <ul id="roster" class="roster"></ul>
+    <div class="quick">
+      <button type="button" id="all-in" class="link">Everyone's in</button>
+      <button type="button" id="all-out" class="link">Clear tonight</button>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Pick a game</h2>
+    <p class="hint" id="play-hint"></p>
+    <div id="modes" class="modes"></div>
+  </section>
+
+  <section id="sim-panel" class="card hidden">
+    <h2>Fairness test</h2>
+    <p class="hint">Runs each game headless with tonight's players and counts who loses.</p>
+    <div id="sim-buttons" class="sim-buttons"></div>
+    <div id="sim-out"></div>
+  </section>
+
+  <p class="fine">Every player has exactly equal odds in every game. Picks use your browser's crypto random generator, and physics games shuffle who starts where, so no spot on the course is lucky.</p>
+</main>
+
+<section id="game" class="screen hidden">
+  <header class="game-bar">
+    <button type="button" id="quit" class="icon-btn" aria-label="Back to roster">←</button>
+    <h2 id="game-title"></h2>
+    <button type="button" class="icon-btn mute-btn" aria-label="Toggle sound">🔊</button>
+  </header>
+  <div class="stage">
+    <canvas id="canvas"></canvas>
+    <div id="hud"></div>
+  </div>
+</section>
+
+<div id="result" class="overlay hidden" role="dialog" aria-live="assertive">
+  <canvas id="confetti"></canvas>
+  <div class="result-card">
+    <div class="result-kicker">The roulette has spoken</div>
+    <div id="result-name" class="result-name"></div>
+    <div class="result-line">is ordering the Uber</div>
+    <div class="result-car">🚕</div>
+    <div class="result-actions">
+      <button type="button" id="again" class="btn">Run it back</button>
+      <button type="button" id="change" class="btn ghost">Change mode</button>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
