@@ -2,8 +2,8 @@
 // Shortest distance orders. Launch order and launch power/angle are drawn
 // independently of who's who, so every player has exactly a 1/N chance.
 
-import { shuffle, rand } from '../fair.js?v=3';
-import { STEP, fit, runSim, simulateHeadless, throttle, poly, tag, short, clamp, ease, banner, shade, initial, textOn, setHud, esc } from '../stage.js?v=3';
+import { shuffle, rand } from '../fair.js?v=4';
+import { STEP, fit, runSim, simulateHeadless, throttle, poly, tag, short, clamp, ease, banner, shade, initial, textOn, setHud, esc } from '../stage.js?v=4';
 
 const { Engine, Bodies, Body, Composite, Constraint, Events } = Matter;
 

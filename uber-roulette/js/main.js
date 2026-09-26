@@ -1,13 +1,14 @@
-import { pick } from './fair.js?v=3';
-import { sfx, unlock, isMuted, setMuted } from './audio.js?v=3';
-import { showResult, hideResult } from './result.js?v=3';
-import { esc } from './stage.js?v=3';
-import marble from './modes/marble.js?v=3';
-import fling from './modes/fling.js?v=3';
-import wheel from './modes/wheel.js?v=3';
-import beer from './modes/beer.js?v=3';
+import { pick } from './fair.js?v=4';
+import { sfx, unlock, isMuted, setMuted } from './audio.js?v=4';
+import { showResult, hideResult } from './result.js?v=4';
+import { esc } from './stage.js?v=4';
+import marble from './modes/marble.js?v=4';
+import fling from './modes/fling.js?v=4';
+import wheel from './modes/wheel.js?v=4';
+import beer from './modes/beer.js?v=4';
+import bear from './modes/bear.js?v=4';
 
-const MODES = [marble, fling, wheel, beer];
+const MODES = [marble, fling, bear, beer, wheel];
 const RANDOM = { id: 'random', title: 'Surprise me', emoji: '🎲', blurb: 'Pick one of the games at random.' };
 const KEY = 'uber-roulette:roster';
 const MAX_PLAYERS = 16;

@@ -5,8 +5,8 @@
 // the person left over at the end is uniformly random. Each round's passes are
 // built backward to end on that round's winner.
 
-import { randInt, shuffle, rand } from '../fair.js?v=3';
-import { TAU, fit, loop, banner, tag, short, clamp, ease, initial, textOn, shade } from '../stage.js?v=3';
+import { randInt, shuffle, rand } from '../fair.js?v=4';
+import { TAU, fit, loop, banner, tag, short, clamp, ease, initial, textOn, shade } from '../stage.js?v=4';
 
 const INTRO = 1000;
 const CHEERS = 1700;

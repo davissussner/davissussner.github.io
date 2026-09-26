@@ -78,6 +78,15 @@ export const sfx = {
     tone({ freq: 2100, type: 'sine', dur: 0.25, vol: 0.12 });
     tone({ freq: 2650, type: 'sine', dur: 0.3, vol: 0.09, delay: 0.06 });
   },
+  roar() {
+    tone({ freq: 120, type: 'sawtooth', dur: 0.9, vol: 0.12, slide: -60 });
+    noise({ dur: 0.9, vol: 0.2, freq: 700, slide: -500 });
+  },
+  chomp() {
+    noise({ dur: 0.12, vol: 0.5, freq: 1800 });
+    noise({ dur: 0.18, vol: 0.5, freq: 900, delay: 0.16 });
+    tone({ freq: 80, type: 'square', dur: 0.3, vol: 0.15, delay: 0.05 });
+  },
   hiss: () => noise({ dur: 0.9, vol: 0.08, freq: 6000 }),
   boom() {
     noise({ dur: 1.2, vol: 0.9, freq: 900, slide: -820 });

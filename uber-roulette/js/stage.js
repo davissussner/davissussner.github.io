@@ -106,8 +106,13 @@ export function tag(ctx, text, x, y, size, color = '#fff') {
 // Big centered headline in screen space.
 export function banner(ctx, w, h, dpr, text, { sub = '', color = '#ffd23f', y = 0.2 } = {}) {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
-  const size = Math.min(w * 0.09, 44 * dpr);
+  let size = Math.min(w * 0.09, 44 * dpr);
   ctx.font = `400 ${size}px Bungee, Inter, sans-serif`;
+  const fitW = ctx.measureText(text).width;
+  if (fitW > w * 0.9) {
+    size *= (w * 0.9) / fitW;
+    ctx.font = `400 ${size}px Bungee, Inter, sans-serif`;
+  }
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.lineJoin = 'round';

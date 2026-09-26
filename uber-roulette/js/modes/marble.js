@@ -2,17 +2,17 @@
 // Fairness: names are shuffled into start slots, so any bias in the course
 // lands on a random person. Each player loses with probability exactly 1/N.
 
-import { shuffle } from '../fair.js?v=3';
-import { STEP, fit, runSim, simulateHeadless, throttle, poly, tag, short, clamp, ease, banner, shade, setHud, esc } from '../stage.js?v=3';
+import { shuffle } from '../fair.js?v=4';
+import { STEP, fit, runSim, simulateHeadless, throttle, poly, tag, short, clamp, ease, banner, shade, setHud, esc } from '../stage.js?v=4';
 
-const { Engine, Bodies, Body, Composite, Events } = Matter;
+const { Engine, Bodies, Body, Composite, Events, Query } = Matter;
 
 const W = 400;
 const R = 9;
 const FINISH_Y = 3130;
 const FLOOR_Y = 3250;
 const COUNTDOWN = 180;
-const STUCK_STEPS = 240;
+const UNSTICK_STEPS = 90; // no progress for this long -> nudge; third strike -> ghost through
 const TIMEOUT = 150 * 60;
 const GRAVITY = 0.0008; // Matter default is 0.001
 
@@ -60,10 +60,11 @@ function buildCourse() {
     ramp(406, y, 354, y + 30);
   };
   // V-shaped hopper with a single-file exit: bunches the pack back up.
-  const hopper = (y, exit = 34) => {
-    ramp(-10, y, 200 - exit / 2, y + 170);
-    ramp(410, y, 200 + exit / 2, y + 170);
-    paddle(200, y + 145, 60, 0.05);
+  // V-shaped hopper: bunches the pack back up. The exit is wide enough that two
+  // marbles can't wedge across it.
+  const hopper = y => {
+    ramp(-10, y, 175, y + 170);
+    ramp(410, y, 225, y + 170);
   };
   const paddle = (cx, cy, len, w) => {
     spinZones.push([cx, cy, len / 2]);
@@ -98,9 +99,8 @@ function buildCourse() {
   // B: first hopper
   hopper(590);
 
-  // C: windmills. A little roof in the middle feeds marbles into the blades.
-  ramp(170, 815, 200, 790);
-  ramp(200, 790, 230, 815);
+  // C: windmills. A bumper under the hopper bounces marbles into the blades.
+  bumper(200, 835, 13);
   windmill(95, 895, 85, 0.03);
   windmill(305, 895, 85, -0.03);
   windmill(200, 1060, 100, 0.035);
@@ -154,7 +154,7 @@ export function createSim(players, { headless = false } = {}) {
       label: 'marble', restitution: 0.45, friction: 0.02, frictionAir: 0.0008, density: 0.004,
       collisionFilter: { category: MARBLE },
     });
-    return { player, body, finished: false, place: 0, best: y, bestAt: raceStart };
+    return { player, body, finished: false, place: 0, best: y, bestAt: raceStart, kicks: 0, ghost: null };
   });
   Composite.add(engine.world, marbles.map(m => m.body));
 
@@ -166,6 +166,7 @@ export function createSim(players, { headless = false } = {}) {
 
   const sim = {
     t: 0, raceStart, marbles, statics, paddles, gate,
+    solids: [...statics, ...paddles.map(p => p.body)],
     finished: [], done: false, loser: null, loserMarble: null, events: [],
   };
 
@@ -218,13 +219,33 @@ export function createSim(players, { headless = false } = {}) {
         Body.setPosition(m.body, { x: W / 2, y: Math.max(y, 100) });
         Body.setVelocity(m.body, { x: 0, y: 0 });
       }
+      // Stuck-proofing: nudge a marble that stops making progress; if two nudges
+      // don't free it, it turns into a ghost (no collisions) and drops through
+      // whatever is holding it until it's back in open space.
       if (y > m.best + 2) {
         m.best = y;
         m.bestAt = sim.t;
-      } else if (sim.t - m.bestAt > STUCK_STEPS) {
-        const dir = Math.random() < 0.5 ? -1 : 1;
-        Body.setVelocity(m.body, { x: dir * (1.5 + Math.random() * 1.5), y: -1.5 });
+        m.kicks = 0;
+      } else if (m.ghost === null && sim.t - m.bestAt > UNSTICK_STEPS) {
         m.bestAt = sim.t;
+        if (++m.kicks <= 2) {
+          const dir = Math.random() < 0.5 ? -1 : 1;
+          Body.setVelocity(m.body, { x: dir * (1.5 + Math.random() * 1.5), y: -1.5 });
+        } else {
+          m.kicks = 0;
+          m.ghost = 0;
+          m.body.collisionFilter.mask = 0;
+        }
+      }
+      if (m.ghost !== null) {
+        m.ghost++;
+        Body.setVelocity(m.body, { x: m.body.velocity.x * 0.9, y: 2.5 });
+        const clear = Query.collides(m.body, sim.solids).length === 0;
+        if (m.ghost > 60 || (m.ghost > 12 && clear)) {
+          m.body.collisionFilter.mask = 0xFFFFFFFF;
+          m.ghost = null;
+          m.bestAt = sim.t;
+        }
       }
     }
 
@@ -381,6 +402,7 @@ function renderer(canvas, sim) {
       const { x, y } = m.body.position;
       if (y < top - 30 || y > bottom + 30) continue;
       const c = m.player.color;
+      ctx.globalAlpha = m.ghost !== null ? 0.45 : 1;
       const g = ctx.createRadialGradient(x - 3, y - 3, 1, x, y, R);
       g.addColorStop(0, shade(c, 0.6));
       g.addColorStop(1, c);
@@ -388,6 +410,7 @@ function renderer(canvas, sim) {
       ctx.beginPath();
       ctx.arc(x, y, R, 0, Math.PI * 2);
       ctx.fill();
+      ctx.globalAlpha = 1;
       if (sim.done && m === sim.loserMarble) {
         ctx.strokeStyle = '#ffd23f';
         ctx.lineWidth = 3;
