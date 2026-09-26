@@ -72,6 +72,12 @@ export const sfx = {
   ding: (p = 0) => tone({ freq: 880 + p * 60, type: 'sine', dur: 0.3, vol: 0.14 }),
   creak: () => tone({ freq: 90, type: 'sawtooth', dur: 0.35, vol: 0.06, slide: 60 }),
   whoosh: () => noise({ dur: 0.45, vol: 0.3, freq: 3000, slide: -2600 }),
+  drum: () => noise({ dur: 0.06, vol: 0.18, freq: 500 }),
+  buzz: () => tone({ freq: 140, type: 'square', dur: 0.4, vol: 0.09, slide: -40 }),
+  clink() {
+    tone({ freq: 2100, type: 'sine', dur: 0.25, vol: 0.12 });
+    tone({ freq: 2650, type: 'sine', dur: 0.3, vol: 0.09, delay: 0.06 });
+  },
   hiss: () => noise({ dur: 0.9, vol: 0.08, freq: 6000 }),
   boom() {
     noise({ dur: 1.2, vol: 0.9, freq: 900, slide: -820 });

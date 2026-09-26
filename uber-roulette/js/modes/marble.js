@@ -2,8 +2,8 @@
 // Fairness: names are shuffled into start slots, so any bias in the course
 // lands on a random person. Each player loses with probability exactly 1/N.
 
-import { shuffle } from '../fair.js';
-import { STEP, fit, runSim, simulateHeadless, throttle, poly, tag, short, clamp, ease, banner, shade, setHud, esc } from '../stage.js';
+import { shuffle } from '../fair.js?v=2';
+import { STEP, fit, runSim, simulateHeadless, throttle, poly, tag, short, clamp, ease, banner, shade, setHud, esc } from '../stage.js?v=2';
 
 const { Engine, Bodies, Body, Composite, Events } = Matter;
 
@@ -13,7 +13,8 @@ const FINISH_Y = 2400;
 const FLOOR_Y = 2520;
 const COUNTDOWN = 180;
 const STUCK_STEPS = 150;
-const TIMEOUT = 90 * 60;
+const TIMEOUT = 120 * 60;
+const GRAVITY = 0.00065; // Matter default is 0.001; lower = slower, easier-to-follow race
 
 const MARBLE = 0x0001;
 const STATIC = 0x0002;
@@ -60,10 +61,10 @@ function buildCourse() {
   // C: bumpers around a big spinner
   for (const [x, y] of [[70, 1330], [200, 1320], [330, 1330], [130, 1420], [270, 1420], [60, 1570], [340, 1570]]) bumper(x, y);
   bumper(200, 1655, 22);
-  paddle(200, 1525, 170, 0.05);
+  paddle(200, 1525, 170, 0.04);
 
   // D: dense pegs with twin spinners
-  const spinners = [[110, 1900, 0.06], [290, 1900, -0.06]];
+  const spinners = [[110, 1900, 0.045], [290, 1900, -0.045]];
   for (let row = 0, y = 1720; y <= 2080; row++, y += 36) {
     const x0 = row % 2 ? 49 : 30;
     for (let x = x0; x <= 370; x += 38) {
@@ -84,6 +85,7 @@ export function createSim(players, { headless = false } = {}) {
   const engine = Engine.create();
   engine.positionIterations = 8;
   engine.velocityIterations = 6;
+  engine.gravity.scale = GRAVITY;
 
   const { statics, paddles } = buildCourse();
   Composite.add(engine.world, statics);

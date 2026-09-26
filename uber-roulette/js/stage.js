@@ -35,11 +35,12 @@ export function loop(signal, frame) {
 
 // Drive a physics sim at a fixed 60Hz step, render every frame, and resolve
 // with the sim's loser once it's done and the "last place" moment has played.
-export function runSim(signal, sim, draw, onEvent, holdMs = 1900) {
+// `speed` only changes playback rate (slow motion), never the physics itself.
+export function runSim(signal, sim, draw, onEvent, holdMs = 1900, speed = () => 1) {
   let acc = 0;
   let doneAt = null;
   return loop(signal, (dt, now) => {
-    acc += dt;
+    acc += dt * speed();
     let n = 0;
     while (acc >= STEP && !sim.done && n < 4) {
       sim.step();

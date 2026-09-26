@@ -2,8 +2,8 @@
 // Shortest distance orders. Launch order and launch power/angle are drawn
 // independently of who's who, so every player has exactly a 1/N chance.
 
-import { shuffle, rand } from '../fair.js';
-import { STEP, fit, runSim, simulateHeadless, throttle, poly, tag, short, clamp, ease, banner, shade, initial, textOn, setHud, esc } from '../stage.js';
+import { shuffle, rand } from '../fair.js?v=2';
+import { STEP, fit, runSim, simulateHeadless, throttle, poly, tag, short, clamp, ease, banner, shade, initial, textOn, setHud, esc } from '../stage.js?v=2';
 
 const { Engine, Bodies, Body, Composite, Constraint, Events } = Matter;
 
@@ -14,7 +14,9 @@ const ARM = 80;
 const LAUNCH_X = 110;
 const REST_A = 200 * DEG;
 const RELEASE_A = 75 * DEG;
-const LOAD = 55;
+const LOAD = 100;
+const LOAD_FINAL = 160;
+const VERDICT_STEPS = 60;
 const SWING = 22;
 const REST_STEPS = 40;
 const MAX_FLY = 12 * 60;
@@ -131,7 +133,8 @@ export function createSim(players, { headless = false } = {}) {
     const cur = slots[sim.idx];
     if (sim.phase === 'load') {
       sim.armA += (REST_A - sim.armA) * 0.15;
-      if (sim.phaseT >= (headless ? 1 : LOAD)) {
+      const wait = sim.idx === slots.length - 1 ? LOAD_FINAL : LOAD;
+      if (sim.phaseT >= (headless ? 1 : wait)) {
         sim.phase = 'swing';
         sim.phaseT = 0;
         sim.events.push({ type: 'creak' });
@@ -151,8 +154,10 @@ export function createSim(players, { headless = false } = {}) {
       sim.restFor = still ? sim.restFor + 1 : 0;
       if (sim.restFor >= REST_STEPS || sim.phaseT >= MAX_FLY) {
         cur.trail.length = 0;
-        sim.lastLanded = { slot: cur, t: sim.t };
-        sim.events.push({ type: 'land' });
+        const mark = dangerSlot(sim);
+        const verdict = !mark ? 'first' : cur.x < mark.x ? 'shortest' : 'safe';
+        sim.lastLanded = { slot: cur, t: sim.t, verdict };
+        sim.events.push({ type: 'land', verdict });
         sim.idx++;
         sim.phase = sim.idx < slots.length ? 'load' : 'final';
         sim.phaseT = 0;
@@ -171,7 +176,23 @@ export function createSim(players, { headless = false } = {}) {
 
 const feet = x => Math.max(0, Math.round((x - LAUNCH_X) / 10));
 
-function renderer(canvas, sim) {
+// Shortest fling so far among players who've landed (the "danger line").
+function dangerSlot(sim) {
+  const landed = sim.slots.slice(0, sim.idx);
+  return landed.length ? landed.reduce((a, b) => (b.x < a.x ? b : a)) : null;
+}
+
+// Close call: the flyer is coming down, or rolling, right around the danger line.
+function closeCall(sim) {
+  if (sim.phase !== 'fly' || sim.done) return false;
+  const d = dangerSlot(sim);
+  if (!d) return false;
+  const t = sim.slots[sim.idx].doll.torso;
+  const { x, y } = t.position;
+  return Math.abs(x - d.x) < 130 && y > GROUND - 220 && (t.velocity.y > 0 || y > GROUND - 60);
+}
+
+function renderer(canvas, sim, view) {
   const ctx = canvas.getContext('2d');
   const cam = { x: 0, y: 0, s: 0 };
   const stars = Array.from({ length: 80 }, () => ({ x: Math.random(), y: Math.random() * 0.7, r: Math.random() * 1.3 + 0.3 }));
@@ -190,6 +211,9 @@ function renderer(canvas, sim) {
     const { w, h, dpr } = fit(canvas);
     const base = Math.min(w / 520, h / 480);
     const cur = sim.slots[sim.idx];
+    const slow = closeCall(sim);
+    view.speed += ((slow ? 0.3 : 1) - view.speed) * ease(dt, 0.01);
+    if (slow) view.onSlow();
     let s = base;
     let cx;
     let cy;
@@ -209,6 +233,7 @@ function renderer(canvas, sim) {
     } else if (sim.phase === 'fly') {
       const p = cur.doll.torso.position;
       cx = p.x + (w / s) * 0.12;
+      if (slow) s = base * 1.4;
       cy = Math.min(p.y + (h / s) * 0.1, GROUND - (h / s) * 0.18);
       rate = 0.012;
     } else {
@@ -286,6 +311,33 @@ function renderer(canvas, sim) {
       ctx.fillStyle = 'rgba(255,255,255,.5)';
       ctx.fillRect(x - 1.5, GROUND, 3, 18);
       tag(ctx, `${d / 10} ft`, x, GROUND + 22 + markSize, markSize, 'rgba(255,255,255,.75)');
+    }
+
+    // Danger line: beat it or you're the new Uber orderer
+    const danger = sim.done ? null : dangerSlot(sim);
+    if (danger) {
+      const dx = Math.max(danger.x, LAUNCH_X);
+      ctx.fillStyle = 'rgba(255, 77, 109, .22)';
+      ctx.fillRect(LAUNCH_X, GROUND, dx - LAUNCH_X, 30);
+      ctx.strokeStyle = 'rgba(255, 77, 109, .5)';
+      ctx.lineWidth = 3;
+      ctx.setLineDash([14, 12]);
+      ctx.beginPath();
+      ctx.moveTo(dx, GROUND);
+      ctx.lineTo(dx, GROUND - 900);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = '#f4f1ff';
+      ctx.fillRect(dx - 2, GROUND - 130, 4, 130);
+      ctx.fillStyle = '#ff4d6d';
+      ctx.beginPath();
+      ctx.moveTo(dx + 2, GROUND - 130);
+      ctx.lineTo(dx + 50, GROUND - 115);
+      ctx.lineTo(dx + 2, GROUND - 100);
+      ctx.closePath();
+      ctx.fill();
+      const fs = clamp(12 * dpr / S, 10, 60);
+      tag(ctx, `🚕 ${short(danger.player.name)} · ${feet(danger.x)} ft`, dx, GROUND - 140, fs, '#ff8fa3');
     }
 
     for (const b of sim.statics) {
@@ -440,14 +492,30 @@ function renderer(canvas, sim) {
     }
 
     // Screen overlays
+    if (slow) {
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      const vg = ctx.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.35, w / 2, h / 2, Math.max(w, h) * 0.75);
+      vg.addColorStop(0, 'rgba(255, 30, 70, 0)');
+      vg.addColorStop(1, 'rgba(255, 30, 70, .35)');
+      ctx.fillStyle = vg;
+      ctx.fillRect(0, 0, w, h);
+      if (Math.floor(performance.now() / 250) % 2 === 0) banner(ctx, w, h, dpr, 'CLOSE CALL…', { color: '#ff4d6d', y: 0.3 });
+    }
     if (sim.done) {
       banner(ctx, w, h, dpr, `${short(sim.loser.name)}: ${feet(sim.loserSlot.x)} ft`, { color: sim.loser.color, sub: 'Shortest fling!', y: 0.3 });
     } else if (sim.phase === 'load' || sim.phase === 'swing') {
       const landed = sim.lastLanded;
-      if (landed && sim.t - landed.t < 50) {
-        banner(ctx, w, h, dpr, `${feet(landed.slot.x)} ft`, { color: landed.slot.player.color, sub: landed.slot.player.name, y: 0.3 });
+      const final = sim.idx === sim.slots.length - 1;
+      if (landed && sim.t - landed.t < VERDICT_STEPS) {
+        const { name } = landed.slot.player;
+        const ft = feet(landed.slot.x);
+        if (landed.verdict === 'safe') banner(ctx, w, h, dpr, `SAFE! ${ft} ft`, { color: '#7ae582', sub: `${name} clears the line`, y: 0.3 });
+        else if (landed.verdict === 'shortest') banner(ctx, w, h, dpr, 'NEW SHORTEST!', { color: '#ff4d6d', sub: `${ft} ft. ${name} is on Uber duty… for now`, y: 0.3 });
+        else banner(ctx, w, h, dpr, `${ft} ft`, { color: landed.slot.player.color, sub: `${name} sets the mark`, y: 0.3 });
+      } else if (final && danger) {
+        banner(ctx, w, h, dpr, 'FINAL FLING', { color: cur.player.color, sub: `${cur.player.name} must beat ${feet(danger.x)} ft`, y: 0.3 });
       } else {
-        banner(ctx, w, h, dpr, `${short(cur.player.name)} is up`, { color: cur.player.color, y: 0.3 });
+        banner(ctx, w, h, dpr, `${short(cur.player.name)} is up`, { color: cur.player.color, sub: danger ? `Beat ${feet(danger.x)} ft to stay safe` : 'First fling sets the mark', y: 0.3 });
       }
     }
   };
@@ -458,9 +526,10 @@ function hudUpdater(hud, sim) {
     const launched = sim.slots.filter(s => s.doll).sort((a, b) => b.x - a.x);
     const waiting = sim.slots.filter(s => !s.doll);
     const current = sim.phase === 'fly' ? sim.slots[sim.idx] : null;
-    const rows = launched.map((s, i) => {
-      const hot = sim.done ? s === sim.loserSlot : (launched.length > 1 && i === launched.length - 1 && !current);
-      return `<div class="hud-row${hot ? ' hot' : ''}" style="--c:${s.player.color}"><span class="d"></span><span class="n">${s === current ? '🚀 ' : ''}${esc(s.player.name)}</span><span class="v">${feet(s.x)} ft</span></div>`;
+    const danger = sim.done ? sim.loserSlot : dangerSlot(sim);
+    const rows = launched.map(s => {
+      const icon = s === current ? '🚀 ' : s === danger ? '🚕 ' : '';
+      return `<div class="hud-row${s === danger ? ' hot' : ''}" style="--c:${s.player.color}"><span class="d"></span><span class="n">${icon}${esc(s.player.name)}</span><span class="v">${feet(s.x)} ft</span></div>`;
     });
     const wait = waiting.map(s =>
       `<div class="hud-row dim" style="--c:${s.player.color}"><span class="d"></span><span class="n">${esc(s.player.name)}</span><span class="v">…</span></div>`);
@@ -476,7 +545,8 @@ export default {
   simulate: players => simulateHeadless(createSim, players),
   play({ canvas, hud, players, signal, sfx }) {
     const sim = createSim(players);
-    const draw = renderer(canvas, sim);
+    const view = { speed: 1, onSlow: throttle(sfx.drum, 70) };
+    const draw = renderer(canvas, sim, view);
     const updateHud = hudUpdater(hud, sim);
     const boing = throttle(sfx.boing, 100);
     const thud = throttle(sfx.thud, 120);
@@ -485,8 +555,8 @@ export default {
       else if (e.type === 'launch') sfx.whoosh();
       else if (e.type === 'boing') boing();
       else if (e.type === 'thud') thud();
-      else if (e.type === 'land') sfx.ding(0);
+      else if (e.type === 'land') (e.verdict === 'shortest' ? sfx.buzz : e.verdict === 'safe' ? sfx.fanfare : sfx.ding)();
       else if (e.type === 'last') sfx.womp();
-    }, 2400);
+    }, 2400, () => view.speed);
   },
 };
