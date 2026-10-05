@@ -87,6 +87,10 @@ export const sfx = {
     noise({ dur: 0.18, vol: 0.5, freq: 900, delay: 0.16 });
     tone({ freq: 80, type: 'square', dur: 0.3, vol: 0.15, delay: 0.05 });
   },
+  pop() {
+    noise({ dur: 0.25, vol: 0.6, freq: 2500, slide: -2000 });
+    tone({ freq: 700, type: 'triangle', dur: 0.12, vol: 0.12, slide: 500 });
+  },
   hiss: () => noise({ dur: 0.9, vol: 0.08, freq: 6000 }),
   boom() {
     noise({ dur: 1.2, vol: 0.9, freq: 900, slide: -820 });

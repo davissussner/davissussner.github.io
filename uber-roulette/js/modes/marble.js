@@ -1,9 +1,11 @@
-// Marble Race: everyone's marble drops down a course. Last one across the line orders.
+// Marble Race: everyone's marble drops down a course. Last one across the line orders
+// (goal 'last'), or, on the class picker, the first one across gets picked (goal 'first').
+// Either way sim.loser is whoever the game picks.
 // Fairness: names are shuffled into start slots, so any bias in the course
 // lands on a random person. Each player loses with probability exactly 1/N.
 
-import { shuffle } from '../fair.js?v=6';
-import { STEP, fit, runSim, simulateHeadless, throttle, poly, tag, short, clamp, ease, banner, shade, setHud, esc } from '../stage.js?v=6';
+import { shuffle } from '../fair.js?v=7';
+import { STEP, fit, runSim, simulateHeadless, throttle, poly, tag, short, clamp, ease, banner, shade, setHud, esc } from '../stage.js?v=7';
 
 const { Engine, Bodies, Body, Composite, Events, Query } = Matter;
 
@@ -132,7 +134,7 @@ function buildCourse() {
   return { statics, paddles };
 }
 
-export function createSim(players, { headless = false } = {}) {
+export function createSim(players, { headless = false, goal = 'last' } = {}) {
   const engine = Engine.create();
   engine.positionIterations = 8;
   engine.velocityIterations = 6;
@@ -165,7 +167,7 @@ export function createSim(players, { headless = false } = {}) {
   }
 
   const sim = {
-    t: 0, raceStart, marbles, statics, paddles, gate,
+    t: 0, raceStart, marbles, statics, paddles, gate, goal,
     solids: [...statics, ...paddles.map(p => p.body)],
     finished: [], done: false, loser: null, loserMarble: null, events: [],
   };
@@ -265,7 +267,13 @@ export function createSim(players, { headless = false } = {}) {
     }
 
     const left = marbles.filter(m => !m.finished);
-    if (left.length <= 1 || sim.t - raceStart > TIMEOUT) {
+    if (goal === 'first' && (sim.finished.length || sim.t - raceStart > TIMEOUT)) {
+      sim.loserMarble = sim.finished[0] ?? left.reduce((a, b) => (b.body.position.y > a.body.position.y ? b : a));
+      sim.loser = sim.loserMarble.player;
+      sim.shot = null;
+      sim.done = true;
+      sim.events.push({ type: 'last' });
+    } else if (goal === 'last' && (left.length <= 1 || sim.t - raceStart > TIMEOUT)) {
       // Rank finishers in order, then anyone still rolling by progress (only on
       // timeout). Last orders the Uber; second to last takes a shot.
       const ranking = [...sim.finished, ...left.sort((a, b) => b.body.position.y - a.body.position.y)];
@@ -293,7 +301,8 @@ function renderer(canvas, sim) {
     const ox = (w - W * s) / 2;
     const viewH = h / s;
 
-    // Camera: keep the trailing marble in view, centered on the pack when it fits.
+    // Camera: keep the marble that matters in view (the trailing one when last place
+    // loses, the leader when first place wins), centered on the pack when it fits.
     let target = -60;
     const live = sim.marbles.filter(m => !m.finished);
     if (sim.done) {
@@ -302,7 +311,9 @@ function renderer(canvas, sim) {
       const ys = live.map(m => m.body.position.y);
       const trailing = Math.min(...ys);
       const leading = Math.max(...ys);
-      target = Math.min((trailing + leading) / 2, trailing + viewH * 0.3) - viewH / 2;
+      target = sim.goal === 'first'
+        ? Math.max((trailing + leading) / 2, leading - viewH * 0.3) - viewH / 2
+        : Math.min((trailing + leading) / 2, trailing + viewH * 0.3) - viewH / 2;
     }
     target = clamp(target, -60, FLOOR_Y + 40 - viewH);
     camTop += (target - camTop) * ease(dt, 0.005);
@@ -453,12 +464,20 @@ function renderer(canvas, sim) {
     } else if (sim.t < sim.raceStart + 45) {
       banner(ctx, w, h, dpr, 'GO!', { y: 0.42, color: '#7ae582' });
     }
-    if (sim.done) banner(ctx, w, h, dpr, `${short(sim.loser.name)} is last!`, { color: sim.loser.color, y: 0.3 });
+    if (sim.done) banner(ctx, w, h, dpr, `${short(sim.loser.name)} ${sim.goal === 'first' ? 'wins!' : 'is last!'}`, { color: sim.loser.color, y: 0.3 });
   };
 }
 
 function hudUpdater(hud, sim) {
   return () => {
+    if (sim.goal === 'first') {
+      // Big classes: just the top five
+      const order = [...sim.marbles].sort((a, b) => (b.finished - a.finished) || (b.body.position.y - a.body.position.y));
+      const rows = order.slice(0, 5).map((m, i) =>
+        `<div class="hud-row${sim.done && m === sim.loserMarble ? ' hot' : ''}" style="--c:${m.player.color}"><span class="v">${i + 1}.</span><span class="d"></span><span class="n">${esc(m.player.name)}</span></div>`);
+      setHud(hud, `<div class="hud-box"><div class="hud-title">Leaders</div>${rows.join('')}</div>`);
+      return;
+    }
     const done = sim.finished.map(m =>
       `<div class="hud-row" style="--c:${m.player.color}"><span class="v">${m.place}.</span><span class="d"></span><span class="n">${esc(m.player.name)}</span></div>`);
     const rolling = sim.marbles.filter(m => !m.finished).map(m =>
@@ -476,8 +495,8 @@ export default {
   emoji: '🔮',
   blurb: 'Pegs, bumpers, spinners. Last marble across the line orders.',
   simulate: players => simulateHeadless(createSim, players),
-  play({ canvas, hud, players, signal, sfx }) {
-    const sim = createSim(players);
+  play({ canvas, hud, players, signal, sfx, goal = 'last' }) {
+    const sim = createSim(players, { goal });
     const draw = renderer(canvas, sim);
     const updateHud = hudUpdater(hud, sim);
     const peg = throttle(sfx.peg, 70);
@@ -490,7 +509,7 @@ export default {
       else if (e.type === 'bump') bump();
       else if (e.type === 'whack') whack();
       else if (e.type === 'finish') sfx.ding(e.place);
-      else if (e.type === 'last') sfx.womp();
+      else if (e.type === 'last') (goal === 'first' ? sfx.fanfare : sfx.womp)();
     });
   },
 };

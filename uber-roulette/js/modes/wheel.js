@@ -1,8 +1,8 @@
 // Wheel Spin: equal slices, tap to spin. The loser is drawn uniformly first,
 // then the wheel is animated to land on a random spot inside their slice.
 
-import { randInt, shuffle, rand } from '../fair.js?v=6';
-import { TAU, fit, loop, banner, short, textOn, shade } from '../stage.js?v=6';
+import { randInt, shuffle, rand } from '../fair.js?v=7';
+import { TAU, fit, loop, banner, short, textOn, shade } from '../stage.js?v=7';
 
 const POINTER = -Math.PI / 2;
 const mod = (a, m) => ((a % m) + m) % m;
@@ -16,7 +16,7 @@ export default {
     const order = shuffle(players);
     return order[randInt(order.length)];
   },
-  play({ canvas, players, signal, sfx }) {
+  play({ canvas, players, signal, sfx, goal = 'last', hub = '🚕' }) {
     const ctx = canvas.getContext('2d');
     const order = shuffle(players);
     const n = order.length;
@@ -125,7 +125,7 @@ export default {
       ctx.font = `${R * 0.16}px sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText('🚕', cx, cy + R * 0.01);
+      ctx.fillText(hub, cx, cy + R * 0.01);
 
       // Pointer (flaps back on each tick)
       ctx.save();
@@ -149,7 +149,7 @@ export default {
       if (settled) {
         if (doneAt === null) {
           doneAt = elapsed;
-          sfx.womp();
+          (goal === 'first' ? sfx.fanfare : sfx.womp)();
         }
         const loser = order[loserIdx];
         banner(ctx, w, h, dpr, short(loser.name), { color: loser.color, y: 0.93 });

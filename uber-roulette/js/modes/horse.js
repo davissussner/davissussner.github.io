@@ -1,27 +1,28 @@
 // Horse Race: everyone gets a horse. Last across the line orders the Uber and
-// second to last takes a shot.
+// second to last takes a shot (goal 'last'); on the class picker the winner
+// gets picked (goal 'first'). Either way sim.loser is whoever the game picks.
 // Fairness: names are shuffled into lanes and every horse runs on the same
 // random rules (form swings, surges, stumbles, and a pack pull that slows
 // runaway leaders and helps stragglers), none of which know who is riding.
 
-import { shuffle } from '../fair.js?v=6';
-import { fit, runSim, simulateHeadless, throttle, tag, short, clamp, ease, banner, setHud, esc } from '../stage.js?v=6';
+import { shuffle } from '../fair.js?v=7';
+import { fit, runSim, simulateHeadless, throttle, tag, short, clamp, ease, banner, setHud, esc } from '../stage.js?v=7';
 
 const FINISH = 2600;
 const LANE = 46;
 const GATE = 180;          // countdown steps
 const BASE = 2.6;          // units per step
 const TIMEOUT = 45 * 60;
-const STANDS = 130;        // height of the grandstand above the track
+const STANDS = 130;        // height of the grandstand above the track (shorter for big fields)
 
-export function createSim(players, { headless = false } = {}) {
+export function createSim(players, { headless = false, goal = 'last' } = {}) {
   const start = headless ? 0 : GATE;
   const horses = shuffle(players).map((player, lane) => ({
     player, lane, pos: 0, v: 0, form: 1, formNext: 0,
     surge: 0, stumble: 0, finished: false, place: 0, phase: Math.random() * 6,
   }));
   const sim = {
-    t: 0, start, horses, finished: [], done: false, loser: null, shot: null, events: [],
+    t: 0, start, goal, horses, finished: [], done: false, loser: null, shot: null, events: [],
     stretchCalled: false, battle: false,
   };
 
@@ -75,10 +76,17 @@ export function createSim(players, { headless = false } = {}) {
     }
 
     const left = horses.filter(h => !h.finished).sort((a, b) => b.pos - a.pos);
-    // Battle for last: the last two still running, close together, near the line
-    sim.battle = left.length === 2 && left[0].pos > FINISH * 0.8 && left[0].pos - left[1].pos < 70;
+    // Battle for last (the last two still running) or photo finish (the top two),
+    // close together near the line
+    const pair = goal === 'first' ? (sim.finished.length ? [] : left.slice(0, 2)) : left.length === 2 ? left : [];
+    sim.battle = pair.length === 2 && pair[0].pos > FINISH * 0.8 && pair[0].pos - pair[1].pos < (goal === 'first' ? 40 : 70);
 
-    if (left.length <= 1 || sim.t - start > TIMEOUT) {
+    if (goal === 'first' && (sim.finished.length || sim.t - start > TIMEOUT)) {
+      sim.loserHorse = sim.finished[0] ?? left[0];
+      sim.loser = sim.loserHorse.player;
+      sim.done = true;
+      sim.events.push({ type: 'last' });
+    } else if (goal === 'last' && (left.length <= 1 || sim.t - start > TIMEOUT)) {
       const ranking = [...sim.finished, ...left];
       sim.loserHorse = ranking[ranking.length - 1];
       sim.loser = sim.loserHorse.player;
@@ -95,6 +103,9 @@ function renderer(canvas, sim, view) {
   const ctx = canvas.getContext('2d');
   const n = sim.horses.length;
   const trackH = n * LANE;
+  // Big classes need the height for lanes: short grandstand, one row of crowd
+  const stands = n > 12 ? 52 : STANDS;
+  const crowdRows = n > 12 ? 1 : 4;
   const cam = { x: 0, s: 0 };
   const crowdColors = ['#ff4d6d', '#ffd23f', '#3de0ff', '#7ae582', '#b388ff', '#ff8c42', '#f4f1ff'];
   const dust = [];
@@ -107,10 +118,12 @@ function renderer(canvas, sim, view) {
     // Camera: frame the whole pack when it fits, otherwise favor the back of the pack
     const running = sim.horses.filter(hh => !hh.finished);
     const pack = running.length ? running : sim.horses;
-    let lo = Math.min(...pack.map(hh => hh.pos));
-    let hi = Math.max(...pack.map(hh => hh.pos));
+    // When the winner gets picked, frame the front-runners instead of the whole field
+    const front = sim.goal === 'first' ? [...pack].sort((a, b) => b.pos - a.pos).slice(0, 4) : pack;
+    let lo = Math.min(...front.map(hh => hh.pos));
+    let hi = Math.max(...front.map(hh => hh.pos));
     if (sim.done) lo = hi = sim.loserHorse.pos;
-    const sH = h / (trackH + STANDS + 110);
+    const sH = h / (trackH + stands + (n > 12 ? 70 : 110));
     const spanW = clamp(hi - lo + 260, 420, 1000);
     const s = Math.min(w / spanW, sH);
     const viewW = w / s;
@@ -121,8 +134,8 @@ function renderer(canvas, sim, view) {
     cam.x += (cx - cam.x) * ease(dt, 0.006);
     cam.s += (s - cam.s) * ease(dt, 0.004);
     const S = cam.s;
-    const top = -STANDS - 20;
-    const oy = (h - (trackH + STANDS + 60) * S) / 2 - top * S;
+    const top = -stands - 20;
+    const oy = (h - (trackH + stands + 60) * S) / 2 - top * S;
 
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.fillStyle = '#1d4d2f';
@@ -133,16 +146,16 @@ function renderer(canvas, sim, view) {
 
     // Grandstand with a crowd that jumps when the finish is close
     ctx.fillStyle = '#2b2358';
-    ctx.fillRect(viewL, -STANDS, viewR - viewL, STANDS - 14);
+    ctx.fillRect(viewL, -stands, viewR - viewL, stands - 14);
     ctx.fillStyle = '#3b3170';
-    for (let y = -STANDS + 10; y < -20; y += 26) ctx.fillRect(viewL, y + 18, viewR - viewL, 3);
+    for (let y = -stands + 10; y < -20; y += 26) ctx.fillRect(viewL, y + 18, viewR - viewL, 3);
     const excited = Math.max(...sim.horses.map(hh => hh.pos)) > FINISH * 0.7;
     for (let col = Math.floor(viewL / 16); col * 16 < viewR; col++) {
-      for (let row = 0; row < 4; row++) {
+      for (let row = 0; row < crowdRows; row++) {
         const hash = Math.abs(Math.sin(col * 12.9898 + row * 78.233) * 43758.5453) % 1;
         const x = col * 16 + (row % 2) * 8;
         const jump = excited ? Math.max(0, Math.sin(now * 0.012 + hash * 20)) * 5 : 0;
-        const y = -STANDS + 14 + row * 26 - jump;
+        const y = -stands + 14 + row * 26 - jump;
         ctx.fillStyle = crowdColors[Math.floor(hash * crowdColors.length)];
         ctx.beginPath();
         ctx.arc(x, y, 5, 0, Math.PI * 2);
@@ -261,9 +274,9 @@ function renderer(canvas, sim, view) {
       banner(ctx, w, h, dpr, "AND THEY'RE OFF!", { color: '#7ae582', y: 0.9 });
     }
     if (sim.done) {
-      banner(ctx, w, h, dpr, `${short(sim.loser.name)} finishes last!`, { color: sim.loser.color, y: 0.9 });
+      banner(ctx, w, h, dpr, `${short(sim.loser.name)} ${sim.goal === 'first' ? 'wins!' : 'finishes last!'}`, { color: sim.loser.color, y: 0.9 });
     } else if (sim.battle) {
-      banner(ctx, w, h, dpr, 'BATTLE FOR LAST!', { color: '#ff4d6d', y: 0.9 });
+      banner(ctx, w, h, dpr, sim.goal === 'first' ? 'PHOTO FINISH!' : 'BATTLE FOR LAST!', { color: '#ff4d6d', y: 0.9 });
     } else if (sim.stretchCalled && Math.max(...sim.horses.map(hh => hh.pos)) < FINISH * 0.85) {
       banner(ctx, w, h, dpr, 'FINAL STRETCH!', { color: '#ffd23f', y: 0.9 });
     }
@@ -274,11 +287,13 @@ function hudUpdater(hud, sim) {
   return () => {
     // Finished horses first (by place), then the rest by how far along they are
     const order = [...sim.horses].sort((a, b) => (b.finished - a.finished) || (a.finished ? a.place - b.place : b.pos - a.pos));
-    const rows = order.map((hh, i) => {
-      const hot = sim.done ? hh === sim.loserHorse : i === order.length - 1 && sim.t > sim.start;
+    const first = sim.goal === 'first';
+    const shown = first ? order.slice(0, 5) : order; // big classes: just the leaders
+    const rows = shown.map((hh, i) => {
+      const hot = sim.done ? hh === sim.loserHorse : (first ? i === 0 : i === order.length - 1) && sim.t > sim.start;
       return `<div class="hud-row${hot ? ' hot' : ''}" style="--c:${hh.player.color}"><span class="v">${i + 1}.</span><span class="d"></span><span class="n">${hh.finished ? '🏁 ' : ''}${esc(hh.player.name)}</span></div>`;
     });
-    setHud(hud, `<div class="hud-box"><div class="hud-title">Standings</div>${rows.join('')}</div>`);
+    setHud(hud, `<div class="hud-box"><div class="hud-title">${first ? 'Leaders' : 'Standings'}</div>${rows.join('')}</div>`);
   };
 }
 
@@ -288,8 +303,8 @@ export default {
   emoji: '🏇',
   blurb: 'Surges, stumbles, photo finishes. Last across the line orders.',
   simulate: players => simulateHeadless(createSim, players),
-  play({ canvas, hud, players, signal, sfx }) {
-    const sim = createSim(players);
+  play({ canvas, hud, players, signal, sfx, goal = 'last' }) {
+    const sim = createSim(players, { goal });
     const view = { speed: 1, onBattle: throttle(sfx.drum, 90) };
     const draw = renderer(canvas, sim, view);
     const updateHud = hudUpdater(hud, sim);
@@ -303,7 +318,7 @@ export default {
       else if (e.type === 'go') sfx.go();
       else if (e.type === 'stretch') sfx.fanfare();
       else if (e.type === 'finish') sfx.ding(e.place);
-      else if (e.type === 'last') sfx.womp();
+      else if (e.type === 'last') (goal === 'first' ? sfx.fanfare : sfx.womp)();
     }, 2200, () => view.speed);
   },
 };

@@ -6,8 +6,8 @@
 // length is random each game, keeps getting faster, and goes into a frenzy a few
 // seconds after grace ends, so a chase lasts ~10–20s (about 15 on average).
 
-import { shuffle, rand } from '../fair.js?v=6';
-import { fit, runSim, simulateHeadless, throttle, tag, short, clamp, ease, banner, initial, textOn, setHud, esc } from '../stage.js?v=6';
+import { shuffle, rand } from '../fair.js?v=7';
+import { fit, runSim, simulateHeadless, throttle, tag, short, clamp, ease, banner, initial, textOn, setHud, esc } from '../stage.js?v=7';
 
 const W = 400;
 const H = 600;
